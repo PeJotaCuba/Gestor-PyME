@@ -55,7 +55,7 @@ export const ImportView: React.FC<ImportViewProps> = ({ onBack }) => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-900">
+        <div className="flex flex-col h-full bg-slate-900 max-w-2xl mx-auto w-full">
              {/* Header */}
              <header className="px-6 py-4 flex items-center justify-between sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
                 <button onClick={onBack} className="text-orange-500">
@@ -225,7 +225,7 @@ export const ImportView: React.FC<ImportViewProps> = ({ onBack }) => {
             {/* Preview Modal */}
             {previewOpen && (
                 <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/80 backdrop-blur-sm">
-                    <div className="bg-slate-900 rounded-t-[2rem] p-6 max-h-[80vh] overflow-hidden flex flex-col border-t border-slate-800">
+                    <div className="bg-slate-900 rounded-t-[2rem] p-6 max-h-[80vh] overflow-hidden flex flex-col border-t border-slate-800 max-w-2xl mx-auto w-full">
                         <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-6"></div>
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-xl font-bold text-white">Vista Previa</h2>
@@ -233,7 +233,7 @@ export const ImportView: React.FC<ImportViewProps> = ({ onBack }) => {
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                             </button>
                         </div>
-                        <div className="overflow-x-auto no-scrollbar -mx-6">
+                        <div className="overflow-x-auto no-scrollbar -mx-6 md:mx-0">
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-slate-800/50">
                                     <tr>

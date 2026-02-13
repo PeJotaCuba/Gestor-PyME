@@ -102,10 +102,10 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-900">
+        <div className="flex flex-col h-full bg-slate-900 max-w-2xl mx-auto w-full">
             {/* Header */}
-            <header className="px-6 pt-4 pb-2 flex items-center justify-between sticky top-0 bg-slate-900 z-10 border-b border-slate-800/50">
-                <div className="w-16"></div> 
+            <header className="px-6 pt-4 pb-2 flex items-center justify-between sticky top-0 bg-slate-900 z-10 border-b border-slate-800/50 mb-6">
+                <button onClick={onBack} className="text-orange-500 font-medium text-sm">Cancelar</button> 
                 <h1 className="text-lg font-bold text-white">Gastos Generales</h1>
                 <button 
                     onClick={handleValidate} 
@@ -259,7 +259,7 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
                                     <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Método de Distribución</label>
                                     <Info size={16} className="text-orange-500" />
                                 </div>
-                                <div className="grid grid-cols-1 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <div 
                                         onClick={() => updateCurrentExpense('prorationMethod', 'value')}
                                         className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${currentValues.prorationMethod === 'value' ? 'border-orange-500 bg-orange-500/10' : 'border-slate-800 bg-slate-800/30 hover:bg-slate-800'}`}

@@ -101,7 +101,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
   const isValid = name.trim().length > 0;
 
   return (
-    <div className="flex flex-col min-h-full px-6 pt-10 pb-12 relative">
+    <div className="flex flex-col min-h-full px-6 pt-10 pb-12 relative max-w-lg mx-auto w-full">
       
       {/* Hero */}
       <div className="mb-8 text-center">
@@ -172,14 +172,14 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
 
         <div className="space-y-3">
           <label className="block text-sm font-semibold text-slate-300 ml-1">Tipo de Negocio</label>
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {['retail', 'wholesale', 'mixed'].map((type) => (
                   <div 
                     key={type}
                     onClick={() => setBusinessType(type)}
-                    className={`flex items-center p-3 border-2 rounded-xl cursor-pointer transition-all ${businessType === type ? 'border-orange-500 bg-orange-500/10' : 'border-slate-800 bg-slate-800'}`}
+                    className={`flex md:flex-col md:text-center md:justify-center items-center p-3 border-2 rounded-xl cursor-pointer transition-all ${businessType === type ? 'border-orange-500 bg-orange-500/10' : 'border-slate-800 bg-slate-800'}`}
                   >
-                    <div className={`p-2 rounded-lg mr-3 ${businessType === type ? 'bg-orange-500/20' : 'bg-slate-700'}`}>
+                    <div className={`p-2 rounded-lg mr-3 md:mr-0 md:mb-2 ${businessType === type ? 'bg-orange-500/20' : 'bg-slate-700'}`}>
                       {type === 'retail' && <Store className={businessType === type ? 'text-orange-500' : 'text-slate-400'} size={20} />}
                       {type === 'wholesale' && <Package className={businessType === type ? 'text-orange-500' : 'text-slate-400'} size={20} />}
                       {type === 'mixed' && <Layers className={businessType === type ? 'text-orange-500' : 'text-slate-400'} size={20} />}
@@ -187,7 +187,9 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
                     <div className="flex-1">
                       <p className="font-bold text-white text-sm capitalize">{type === 'mixed' ? 'Modelo Mixto' : (type === 'retail' ? 'Minorista' : 'Mayorista')}</p>
                     </div>
-                    {businessType === type && <div className="w-3 h-3 rounded-full bg-orange-500"></div>}
+                    <div className="md:hidden">
+                        {businessType === type && <div className="w-3 h-3 rounded-full bg-orange-500"></div>}
+                    </div>
                   </div>
               ))}
           </div>
@@ -212,7 +214,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
        {/* Enhanced Exchange Rate Modal */}
        {showRateModal && (
           <div className="absolute inset-0 z-50 bg-slate-900/95 backdrop-blur-sm flex flex-col justify-end sm:justify-center p-6 rounded-3xl animate-in fade-in zoom-in duration-200">
-              <div className="bg-slate-800 border border-orange-500/30 p-6 rounded-2xl w-full shadow-2xl relative">
+              <div className="bg-slate-800 border border-orange-500/30 p-6 rounded-2xl w-full shadow-2xl relative max-w-sm mx-auto">
                   <button onClick={cancelRate} className="absolute top-4 right-4 text-slate-400 hover:text-white">
                       <X size={20} />
                   </button>

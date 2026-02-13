@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Wallet, Package, PlusSquare, Receipt, Zap, Truck, TrendingUp, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
+import { Wallet, Package, PlusSquare, Receipt, Zap, Truck, TrendingUp, ChevronLeft, ChevronRight, Settings, Grid } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { ViewState } from '../types';
 
@@ -47,11 +47,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
   };
 
   return (
-    <div className="px-5 pt-2 pb-32 space-y-6">
-      {/* Header */}
-      <header className="flex justify-between items-center mb-6">
+    <div className="px-5 pt-2 pb-32 md:pb-8 md:px-0 space-y-6">
+      {/* Mobile-Only Header (Sidebar covers this on Desktop) */}
+      <header className="flex md:hidden justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Tablero de Control</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Tablero</h1>
           <p className="text-xs text-slate-400 font-medium">Analítica PyME • CUP</p>
         </div>
         
@@ -82,11 +82,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
         </div>
       </header>
 
-      {/* Horizontal Cards with Arrows */}
+      {/* Summary Cards: Scroll on Mobile, Grid on Desktop */}
       <section className="relative">
         <div className="flex items-center justify-between mb-2 px-1">
             <span className="text-xs font-bold text-slate-500">RESUMEN FINANCIERO (CUP)</span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 md:hidden">
                 <button 
                     onClick={() => scroll('left')} 
                     className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 active:scale-95 transition-all"
@@ -104,9 +104,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
         
         <div 
             ref={scrollContainerRef}
-            className="flex space-x-4 overflow-x-auto no-scrollbar -mx-5 px-5 pb-2"
+            className="flex space-x-4 overflow-x-auto no-scrollbar -mx-5 px-5 pb-2 md:grid md:grid-cols-3 md:space-x-0 md:mx-0 md:px-0 md:gap-6 md:overflow-visible"
         >
-          <div className="min-w-[280px] bg-slate-800/50 p-5 rounded-xl border border-slate-700/50 shadow-sm shrink-0">
+          <div className="min-w-[280px] bg-slate-800/50 p-5 rounded-xl border border-slate-700/50 shadow-sm shrink-0 md:w-auto md:min-w-0 hover:bg-slate-800 transition-colors">
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-orange-500/10 rounded-lg text-orange-500">
                 <Wallet size={20} />
@@ -120,7 +120,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
             </div>
           </div>
 
-          <div className="min-w-[280px] bg-slate-800/50 p-5 rounded-xl border border-slate-700/50 shadow-sm shrink-0">
+          <div className="min-w-[280px] bg-slate-800/50 p-5 rounded-xl border border-slate-700/50 shadow-sm shrink-0 md:w-auto md:min-w-0 hover:bg-slate-800 transition-colors">
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
                 <Package size={20} />
@@ -134,7 +134,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
             </div>
           </div>
 
-           <div className="min-w-[280px] bg-slate-800/50 p-5 rounded-xl border border-slate-700/50 shadow-sm shrink-0">
+           <div className="min-w-[280px] bg-slate-800/50 p-5 rounded-xl border border-slate-700/50 shadow-sm shrink-0 md:w-auto md:min-w-0 hover:bg-slate-800 transition-colors">
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-purple-500/10 rounded-lg text-purple-500">
                 <Receipt size={20} />
@@ -150,103 +150,107 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
         </div>
       </section>
 
-      {/* Donut Chart */}
-      <section className="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 shadow-sm">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="font-bold text-lg text-white">Desglose de Costos</h3>
-          <button className="text-orange-500 text-sm font-semibold">Detalles</button>
-        </div>
-        
-        <div className="h-48 relative">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={pieData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={80}
-                paddingAngle={5}
-                dataKey="value"
-                stroke="none"
-              >
-                {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-xs text-slate-400 uppercase font-bold tracking-widest">Proporción</span>
-            <span className="text-2xl font-extrabold text-white">65%</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          <div className="flex items-start space-x-3">
-            <div className="w-3 h-3 rounded-full bg-orange-500 mt-1"></div>
-            <div>
-              <p className="text-xs text-slate-400 font-bold uppercase">Costos Fijos</p>
-              <p className="font-bold text-base text-white">$27,852</p>
+      {/* Main Grid: Charts and Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* Column 1: Pie Chart (Spans 1 col) */}
+          <section className="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 shadow-sm md:col-span-1">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-bold text-lg text-white">Desglose de Costos</h3>
+              <button className="text-orange-500 text-sm font-semibold">Detalles</button>
             </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <div className="w-3 h-3 rounded-full bg-pink-500 mt-1"></div>
-            <div>
-              <p className="text-xs text-slate-400 font-bold uppercase">Variables</p>
-              <p className="font-bold text-base text-white">$14,998</p>
+            
+            <div className="h-48 relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-xs text-slate-400 uppercase font-bold tracking-widest">Proporción</span>
+                <span className="text-2xl font-extrabold text-white">65%</span>
+              </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="flex items-start space-x-3">
+                <div className="w-3 h-3 rounded-full bg-orange-500 mt-1"></div>
+                <div>
+                  <p className="text-xs text-slate-400 font-bold uppercase">Costos Fijos</p>
+                  <p className="font-bold text-base text-white">$27,852</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3">
+                <div className="w-3 h-3 rounded-full bg-pink-500 mt-1"></div>
+                <div>
+                  <p className="text-xs text-slate-400 font-bold uppercase">Variables</p>
+                  <p className="font-bold text-base text-white">$14,998</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Column 2 & 3: Actions & Bar Chart (Spans 2 cols on Desktop) */}
+          <div className="md:col-span-2 space-y-6 flex flex-col h-full">
+               {/* Quick Actions */}
+              <section className="grid grid-cols-2 gap-4">
+                <button 
+                    onClick={() => onChangeView(ViewState.ADD_PRODUCT)}
+                    className="flex flex-col items-center justify-center p-6 bg-orange-500 rounded-xl text-white shadow-lg shadow-orange-500/20 active:scale-95 transition-transform hover:bg-orange-600"
+                >
+                    <PlusSquare size={32} className="mb-2" />
+                    <span className="font-bold text-base">Agregar Producto</span>
+                </button>
+                <button 
+                    onClick={() => onChangeView(ViewState.ADD_EXPENSE)}
+                    className="flex flex-col items-center justify-center p-6 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white active:scale-95 transition-transform hover:bg-slate-800"
+                >
+                    <Receipt size={32} className="mb-2 text-orange-500" />
+                    <span className="font-bold text-base">Nuevo Gasto</span>
+                </button>
+              </section>
+
+               {/* Bar Chart Trend */}
+              <section className="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 shadow-sm flex-1 flex flex-col">
+                <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                    <TrendingUp size={18} className="text-orange-500" />
+                    <h3 className="font-bold text-lg text-white">Tendencia de Gastos</h3>
+                </div>
+                <span className="text-xs text-slate-500 font-bold">ÚLTIMOS 30 DÍAS</span>
+                </div>
+                <div className="h-32 w-full flex-1 min-h-[150px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={barData}>
+                    <Bar dataKey="amt" fill="#f97316" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                </ResponsiveContainer>
+                </div>
+              </section>
           </div>
-        </div>
-      </section>
+      </div>
 
-      {/* Quick Actions */}
-      <section>
-        <h3 className="font-bold text-lg mb-4 text-white">Acciones Rápidas</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <button 
-            onClick={() => onChangeView(ViewState.ADD_PRODUCT)}
-            className="flex flex-col items-center justify-center p-4 bg-orange-500 rounded-xl text-white shadow-lg shadow-orange-500/20 active:scale-95 transition-transform"
-          >
-            <PlusSquare size={28} className="mb-2" />
-            <span className="font-bold text-sm">Agregar Producto</span>
-          </button>
-          <button 
-            onClick={() => onChangeView(ViewState.ADD_EXPENSE)}
-            className="flex flex-col items-center justify-center p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white active:scale-95 transition-transform"
-          >
-            <Receipt size={28} className="mb-2 text-orange-500" />
-            <span className="font-bold text-sm">Nuevo Gasto</span>
-          </button>
-        </div>
-      </section>
-
-      {/* Bar Chart Trend */}
-      <section className="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 shadow-sm">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2">
-            <TrendingUp size={18} className="text-orange-500" />
-            <h3 className="font-bold text-lg text-white">Tendencia de Gastos</h3>
-          </div>
-          <span className="text-xs text-slate-500 font-bold">ÚLTIMOS 30 DÍAS</span>
-        </div>
-        <div className="h-32 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={barData}>
-              <Bar dataKey="amt" fill="#f97316" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
-
-      {/* Recent Lists */}
+      {/* Recent Lists (Full Width) */}
       <section>
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-lg text-white">Prorrateos Recientes</h3>
           <button className="text-orange-500 text-sm font-semibold">Ver Todo</button>
         </div>
-        <div className="space-y-3">
-          <div className="flex items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors">
             <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 mr-4">
               <Zap size={20} />
             </div>
@@ -260,7 +264,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
             </div>
           </div>
           
-           <div className="flex items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
+           <div className="flex items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors">
             <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 mr-4">
               <Truck size={20} />
             </div>

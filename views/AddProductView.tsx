@@ -36,9 +36,9 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
     };
 
     return (
-        <div className="pb-24 pt-2">
+        <div className="pb-24 pt-2 max-w-2xl mx-auto w-full">
             {/* Custom Nav */}
-            <div className="flex items-center justify-between px-4 py-2 sticky top-0 z-20 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+            <div className="flex items-center justify-between px-4 py-2 sticky top-0 z-20 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 mb-6">
                 <button onClick={onBack} className="text-orange-500 font-medium text-sm">Cancelar</button>
                 <h1 className="font-bold text-white text-base">Nuevo Producto</h1>
                 <button onClick={saveProduct} className="bg-orange-500 text-white px-4 py-1.5 rounded-full font-bold text-xs">Guardar</button>
@@ -49,7 +49,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                 {/* Switch to Import */}
                 <div 
                     onClick={onImportClick}
-                    className="bg-orange-900/20 border border-orange-500/30 rounded-xl p-3 flex items-center justify-between cursor-pointer"
+                    className="bg-orange-900/20 border border-orange-500/30 rounded-xl p-3 flex items-center justify-between cursor-pointer hover:bg-orange-900/30 transition-colors"
                 >
                     <div className="flex items-center gap-3">
                         <div className="bg-orange-500 text-white p-2 rounded-lg">
@@ -90,45 +90,68 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                     </div>
                 </section>
 
-                {/* Costs */}
-                <section className="space-y-3">
-                    <div className="flex items-center justify-between px-1">
-                        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Costos Directos</h2>
-                        <span className="text-[10px] bg-orange-500/10 text-orange-500 px-2 py-0.5 rounded-full font-bold">POR UNIDAD</span>
-                    </div>
-                    <div className="bg-slate-800/50 rounded-xl overflow-hidden border border-slate-700/50 shadow-sm">
-                        <div className="p-4 border-b border-slate-700/50">
-                            <label className="block text-xs font-medium text-slate-400 mb-1">Precio Compra</label>
-                            <div className="flex items-center">
-                                <span className="text-slate-500 mr-1">$</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Costs */}
+                    <section className="space-y-3">
+                        <div className="flex items-center justify-between px-1">
+                            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Costos Directos</h2>
+                            <span className="text-[10px] bg-orange-500/10 text-orange-500 px-2 py-0.5 rounded-full font-bold">POR UNIDAD</span>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-xl overflow-hidden border border-slate-700/50 shadow-sm h-full">
+                            <div className="p-4 border-b border-slate-700/50">
+                                <label className="block text-xs font-medium text-slate-400 mb-1">Precio Compra</label>
+                                <div className="flex items-center">
+                                    <span className="text-slate-500 mr-1">$</span>
+                                    <input 
+                                        type="number" 
+                                        value={purchasePrice || ''}
+                                        onChange={(e) => setPurchasePrice(parseFloat(e.target.value) || 0)}
+                                        className="w-full bg-transparent border-none p-0 focus:ring-0 text-base font-semibold text-white placeholder-slate-600 outline-none" 
+                                        placeholder="0.00" 
+                                    />
+                                </div>
+                            </div>
+                            
+                            {/* Transport Toggle */}
+                            <div className="p-4 bg-slate-900/30 flex items-center justify-between h-full">
+                                <div className="flex items-center gap-3">
+                                    <Truck size={20} className={transportAssociated ? "text-orange-500" : "text-slate-600"} />
+                                    <div>
+                                        <label className="block text-sm font-medium text-white">Transporte Asociado</label>
+                                        <p className="text-[10px] text-slate-500">Asociar gasto del día ({new Date().toLocaleDateString()})</p>
+                                    </div>
+                                </div>
+                                <div 
+                                    onClick={() => setTransportAssociated(!transportAssociated)}
+                                    className={`w-11 h-6 rounded-full relative cursor-pointer transition-colors ${transportAssociated ? 'bg-orange-500' : 'bg-slate-700'}`}
+                                >
+                                    <div className={`absolute top-[2px] left-[2px] bg-white rounded-full h-5 w-5 transition-transform ${transportAssociated ? 'translate-x-full' : ''}`}></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Pricing Strategy */}
+                    <section className="space-y-3">
+                        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 px-1">Estrategia de Precios</h2>
+                        <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 shadow-sm space-y-6">
+                            <div>
+                                <div className="flex justify-between items-center mb-4">
+                                    <label className="text-sm font-semibold text-white">Margen de Ganancia</label>
+                                    <span className="text-orange-500 font-bold text-lg">{margin}%</span>
+                                </div>
                                 <input 
-                                    type="number" 
-                                    value={purchasePrice || ''}
-                                    onChange={(e) => setPurchasePrice(parseFloat(e.target.value) || 0)}
-                                    className="w-full bg-transparent border-none p-0 focus:ring-0 text-base font-semibold text-white placeholder-slate-600 outline-none" 
-                                    placeholder="0.00" 
+                                    type="range" 
+                                    min="0" 
+                                    max="100" 
+                                    value={margin}
+                                    onChange={(e) => setMargin(parseInt(e.target.value))}
+                                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500" 
                                 />
                             </div>
                         </div>
-                        
-                        {/* Transport Toggle */}
-                        <div className="p-4 bg-slate-900/30 flex items-center justify-between">
-                             <div className="flex items-center gap-3">
-                                <Truck size={20} className={transportAssociated ? "text-orange-500" : "text-slate-600"} />
-                                <div>
-                                    <label className="block text-sm font-medium text-white">Transporte Asociado</label>
-                                    <p className="text-[10px] text-slate-500">Asociar gasto del día ({new Date().toLocaleDateString()})</p>
-                                </div>
-                             </div>
-                             <div 
-                                onClick={() => setTransportAssociated(!transportAssociated)}
-                                className={`w-11 h-6 rounded-full relative cursor-pointer transition-colors ${transportAssociated ? 'bg-orange-500' : 'bg-slate-700'}`}
-                            >
-                                <div className={`absolute top-[2px] left-[2px] bg-white rounded-full h-5 w-5 transition-transform ${transportAssociated ? 'translate-x-full' : ''}`}></div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                    </section>
+                </div>
 
                 {/* Landed Cost Summary */}
                 <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 flex justify-between items-center">
@@ -141,42 +164,19 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                     </div>
                 </div>
 
-                {/* Pricing Strategy */}
-                <section className="space-y-3">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 px-1">Estrategia de Precios</h2>
-                    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 shadow-sm space-y-6">
+                {/* Result Card */}
+                <div className="pt-2">
+                    <div className="flex justify-between items-center bg-orange-600 rounded-xl p-5 text-white shadow-lg shadow-orange-900/50">
                         <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <label className="text-sm font-semibold text-white">Margen de Ganancia</label>
-                                <span className="text-orange-500 font-bold text-lg">{margin}%</span>
-                            </div>
-                            <input 
-                                type="range" 
-                                min="0" 
-                                max="100" 
-                                value={margin}
-                                onChange={(e) => setMargin(parseInt(e.target.value))}
-                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500" 
-                            />
-                            <div className="flex justify-between mt-2 text-[10px] text-slate-500 font-bold">
-                                <span>MIN 0%</span>
-                                <span>MÁX 100%</span>
-                            </div>
+                            <p className="text-[10px] font-bold uppercase opacity-80 mb-1">Precio de Venta Sugerido</p>
+                            <p className="text-3xl font-bold">${salePrice.toFixed(2)}</p>
                         </div>
-                        <div className="pt-4 border-t border-slate-700/50">
-                            <div className="flex justify-between items-center bg-orange-600 rounded-xl p-5 text-white shadow-lg shadow-orange-900/50">
-                                <div>
-                                    <p className="text-[10px] font-bold uppercase opacity-80 mb-1">Precio de Venta Sugerido</p>
-                                    <p className="text-3xl font-bold">${salePrice.toFixed(2)}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] font-bold uppercase opacity-80 mb-1">Ganancia/Unidad</p>
-                                    <p className="text-lg font-bold text-white/90">${profit.toFixed(2)}</p>
-                                </div>
-                            </div>
+                        <div className="text-right">
+                            <p className="text-[10px] font-bold uppercase opacity-80 mb-1">Ganancia/Unidad</p>
+                            <p className="text-lg font-bold text-white/90">${profit.toFixed(2)}</p>
                         </div>
                     </div>
-                </section>
+                </div>
 
                 {/* Variants */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 flex items-center justify-between">
@@ -197,8 +197,8 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
 
                 {/* Bottom Actions */}
                 <div className="grid grid-cols-2 gap-4 pt-4">
-                    <button className="py-3 px-4 rounded-xl font-bold text-slate-400 bg-slate-800">Guardar Borrador</button>
-                    <button onClick={saveProduct} className="py-3 px-4 rounded-xl font-bold text-white bg-orange-500 shadow-lg shadow-orange-500/30">Publicar</button>
+                    <button className="py-3 px-4 rounded-xl font-bold text-slate-400 bg-slate-800 hover:bg-slate-700 transition-colors">Guardar Borrador</button>
+                    <button onClick={saveProduct} className="py-3 px-4 rounded-xl font-bold text-white bg-orange-500 shadow-lg shadow-orange-500/30 hover:bg-orange-600 transition-colors">Publicar</button>
                 </div>
             </div>
         </div>

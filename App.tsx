@@ -178,6 +178,7 @@ const App = () => {
   };
 
   const showNav = currentView === ViewState.DASHBOARD;
+  const isSetup = currentView === ViewState.SETUP;
 
   return (
     <Layout 
@@ -187,6 +188,7 @@ const App = () => {
         onAddClick={() => setCurrentView(ViewState.ADD_PRODUCT)}
         currentExchangeRate={exchangeRate} 
         onOpenExchange={() => setShowExchangeModal(true)}
+        isSetupMode={isSetup}
     >
       {renderView()}
 

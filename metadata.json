@@ -1,0 +1,7 @@
+{
+  "name": "Gestor PyME - Gestión de Costos",
+  "description": "Aplicación web integral para la gestión de costos de PyMEs, cálculo de costos reales, prorrateo de gastos e importación masiva de productos.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

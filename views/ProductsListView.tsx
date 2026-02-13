@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, History, X, TrendingUp, TrendingDown, Download } from 'lucide-react';
+import { Package, Plus, History, X, TrendingUp, TrendingDown, Download, Edit2, Save } from 'lucide-react';
 import { Product, StockMovement } from '../types';
 
 interface ProductsListViewProps {
@@ -18,6 +18,12 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
   const [editingStockId, setEditingStockId] = useState<number | null>(null);
   const [stockInput, setStockInput] = useState('');
   const [viewingHistoryId, setViewingHistoryId] = useState<number | null>(null);
+  
+  // Edit Product Modal State
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPrice, setEditPrice] = useState('');
+  const [editSale, setEditSale] = useState('');
 
   useEffect(() => {
     loadData();
@@ -56,6 +62,33 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
       
       setEditingStockId(null);
       setStockInput('');
+  };
+
+  const openEditProduct = (prod: Product) => {
+      setEditingProduct(prod);
+      setEditName(prod.name);
+      setEditPrice(prod.price.toString());
+      setEditSale(prod.sale.toString());
+  };
+
+  const saveEditedProduct = () => {
+      if (!editingProduct) return;
+      
+      const updatedProducts = products.map(p => {
+          if (p.id === editingProduct.id) {
+              return {
+                  ...p,
+                  name: editName,
+                  price: parseFloat(editPrice) || 0,
+                  sale: parseFloat(editSale) || 0
+              };
+          }
+          return p;
+      });
+
+      localStorage.setItem(storageKeyProd, JSON.stringify(updatedProducts));
+      setProducts(updatedProducts);
+      setEditingProduct(null);
   };
 
   const handleExport = (format: 'csv' | 'doc' | 'pdf') => {
@@ -123,11 +156,20 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
               const currentStock = getStock(product.id);
               return (
                   <div key={product.id} className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-between hover:bg-slate-800 transition-colors print:bg-white print:border-black print:text-black">
-                      <div>
+                      <div className="relative">
                           <div className="flex justify-between items-start mb-2">
                               <h3 className="font-bold text-white text-lg print:text-black">{product.name}</h3>
                               <span className="bg-slate-700 text-xs px-2 py-1 rounded text-slate-300 print:border print:bg-white print:text-black">{product.category || 'General'}</span>
                           </div>
+                          
+                          {/* Edit Button */}
+                          <button 
+                             onClick={() => openEditProduct(product)}
+                             className="absolute top-0 right-0 p-2 bg-slate-700 rounded-lg text-slate-300 hover:text-white print:hidden"
+                          >
+                              <Edit2 size={14} />
+                          </button>
+
                           <div className="flex items-baseline gap-1 mb-4">
                               <span className="text-3xl font-extrabold text-orange-500 print:text-black">{currentStock}</span>
                               <span className="text-sm text-slate-500 font-medium print:text-black">en stock</span>
@@ -175,6 +217,54 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
                   <div className="flex gap-3">
                       <button onClick={() => setEditingStockId(null)} className="flex-1 py-3 rounded-xl font-bold text-slate-400 bg-slate-800 hover:bg-slate-700">Cancelar</button>
                       <button onClick={handleAddStock} className="flex-1 py-3 rounded-xl font-bold text-white bg-orange-500 hover:bg-orange-600">Guardar</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Edit Product Modal */}
+      {editingProduct && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 print:hidden">
+              <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-sm animate-in fade-in zoom-in">
+                  <h3 className="text-lg font-bold text-white mb-4">Editar Producto</h3>
+                  
+                  <div className="space-y-4">
+                      <div>
+                          <label className="text-xs text-slate-400 font-bold uppercase">Nombre</label>
+                          <input 
+                              type="text" 
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white outline-none"
+                          />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div>
+                              <label className="text-xs text-slate-400 font-bold uppercase">Costo Base</label>
+                              <input 
+                                  type="number" 
+                                  value={editPrice}
+                                  onChange={(e) => setEditPrice(e.target.value)}
+                                  className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white outline-none"
+                              />
+                          </div>
+                          <div>
+                              <label className="text-xs text-slate-400 font-bold uppercase">Precio Venta</label>
+                              <input 
+                                  type="number" 
+                                  value={editSale}
+                                  onChange={(e) => setEditSale(e.target.value)}
+                                  className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white outline-none"
+                              />
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-6">
+                      <button onClick={() => setEditingProduct(null)} className="flex-1 py-3 rounded-xl font-bold text-slate-400 bg-slate-800 hover:bg-slate-700">Cancelar</button>
+                      <button onClick={saveEditedProduct} className="flex-1 py-3 rounded-xl font-bold text-white bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2">
+                          <Save size={16} /> Guardar
+                      </button>
                   </div>
               </div>
           </div>

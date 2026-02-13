@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Store, Package, Layers, ArrowRight, DollarSign, X, RefreshCw, Globe, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Store, Package, Layers, ArrowRight, DollarSign, X, RefreshCw, Globe, CheckCircle, Database, Upload, Download } from 'lucide-react';
 
 interface SetupViewProps {
   onComplete: (name: string, linkExchangeRate: boolean, initialRate?: string, isManual?: boolean) => void;
@@ -18,6 +18,8 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
   const [bccRate, setBccRate] = useState(''); // The detected BCC rate
   const [isManual, setIsManual] = useState(false); // Toggle state
   const [isLoadingRate, setIsLoadingRate] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check for existing business name on mount
   useEffect(() => {
@@ -58,22 +60,37 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
             const parser = new DOMParser();
             const doc = parser.parseFromString(data.contents, 'text/html');
             
+            // Lógica Mejorada para Segmento 3
             const rows = Array.from(doc.querySelectorAll('tr'));
             let foundRate = 0;
 
             for (const row of rows) {
                 const text = row.innerText || row.textContent || '';
+                // Buscamos indicadores del segmento población
                 if (text.includes('USD')) {
                     const numbers = text.match(/\d+(\.\d+)?/g);
                     if (numbers) {
                         const values = numbers.map(n => parseFloat(n));
-                        const maxVal = Math.max(...values.filter(v => v > 25 && v < 500));
-                        if (maxVal > 0 && maxVal !== -Infinity) {
-                             foundRate = maxVal;
+                        // Buscar valores que sean realistas para el mercado de población (>150 y <600)
+                        const populationRateCandidate = values.find(v => v > 150 && v < 600);
+                        if (populationRateCandidate) {
+                             foundRate = populationRateCandidate;
                              break;
                         }
                     }
                 }
+            }
+
+            // Si no encontró en tabla, buscar en texto plano (fallback)
+             if (foundRate === 0) {
+                 const allText = doc.body.innerText;
+                 const allNumbers = allText.match(/\d+(\.\d+)?/g);
+                 if (allNumbers) {
+                     const validRates = allNumbers.map(n => parseFloat(n)).filter(n => n > 200 && n < 600);
+                     if (validRates.length > 0) {
+                         foundRate = validRates[0]; 
+                     }
+                 }
             }
 
             if (foundRate > 0) {
@@ -120,6 +137,95 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
           // If turning manual OFF, revert to BCC rate
           setExchangeRate(bccRate);
       }
+  };
+
+  // --- Backup & Restore Logic ---
+  const handleBackup = () => {
+      // Create a CSV format where each line is Key,Value(JSON)
+      // This is necessary to restore full local storage state properly
+      let csvContent = "data:text/csv;charset=utf-8,KEY,VALUE_JSON\n";
+      
+      let count = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('Gestor_')) {
+              const val = localStorage.getItem(key);
+              if (val) {
+                  // Escape quotes for CSV safety
+                  const escapedVal = val.replace(/"/g, '""');
+                  csvContent += `${key},"${escapedVal}"\n`;
+                  count++;
+              }
+          }
+      }
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `GestorPyME_Backup_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      alert(`Copia de seguridad generada con ${count} registros.`);
+  };
+
+  const handleRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          const content = e.target?.result as string;
+          if (!content) return;
+
+          const lines = content.split('\n');
+          let restoredCount = 0;
+
+          try {
+              // Clear current app data to avoid conflicts
+              // Only clear keys starting with Gestor_
+              const keysToRemove = [];
+              for(let i=0; i<localStorage.length; i++) {
+                  const k = localStorage.key(i);
+                  if(k && k.startsWith('Gestor_')) keysToRemove.push(k);
+              }
+              keysToRemove.forEach(k => localStorage.removeItem(k));
+
+              // Parse CSV simple parser
+              lines.forEach((line, index) => {
+                  if (index === 0) return; // Skip header
+                  if (!line.trim()) return;
+
+                  // CSV Split handling quotes is tricky, simple regex for "key","val"
+                  // Assumption: Key is simple string, Val is quoted JSON
+                  const firstCommaIndex = line.indexOf(',');
+                  if (firstCommaIndex > -1) {
+                      const key = line.substring(0, firstCommaIndex).trim();
+                      let val = line.substring(firstCommaIndex + 1).trim();
+                      
+                      // Remove surrounding quotes if present and unescape double quotes
+                      if (val.startsWith('"') && val.endsWith('"')) {
+                          val = val.substring(1, val.length - 1);
+                          val = val.replace(/""/g, '"');
+                      }
+                      
+                      if (key && val && key.startsWith('Gestor_')) {
+                          localStorage.setItem(key, val);
+                          restoredCount++;
+                      }
+                  }
+              });
+
+              alert(`Restauración completada. Se recuperaron ${restoredCount} registros. La aplicación se reiniciará.`);
+              window.location.reload();
+
+          } catch (error) {
+              alert("Error al procesar el archivo de respaldo. Asegúrese de que es un CSV válido generado por esta aplicación.");
+              console.error(error);
+          }
+      };
+      reader.readAsText(file);
+      if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const isValid = name.trim().length > 0;
@@ -217,6 +323,38 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
                   </div>
               ))}
           </div>
+        </div>
+
+        {/* Data Management Section */}
+        <div className="space-y-2 pt-4 border-t border-slate-800">
+             <label className="block text-sm font-semibold text-slate-300 ml-1 flex items-center gap-2">
+                <Database size={16} />
+                Gestión de Datos
+             </label>
+             <div className="grid grid-cols-2 gap-4">
+                 <button 
+                    onClick={handleBackup}
+                    className="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-bold text-white transition-all"
+                 >
+                     <Download size={16} />
+                     Copia Seguridad
+                 </button>
+                 <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-bold text-orange-500 transition-all"
+                 >
+                     <Upload size={16} />
+                     Restaurar
+                 </button>
+                 <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleRestore} 
+                    accept=".csv" 
+                    className="hidden" 
+                 />
+             </div>
+             <p className="text-[10px] text-slate-500 text-center">Formato .CSV compatible con Excel para restaurar base de datos completa.</p>
         </div>
       </div>
 

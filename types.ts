@@ -7,7 +7,9 @@ export enum ViewState {
   ADD_PRODUCT = 'ADD_PRODUCT',
   IMPORT_PRODUCT = 'IMPORT_PRODUCT',
   ADD_EXPENSE = 'ADD_EXPENSE',
-  CURRENT_ACCOUNT = 'CURRENT_ACCOUNT'
+  CURRENT_ACCOUNT = 'CURRENT_ACCOUNT',
+  WORKSHOP = 'WORKSHOP',
+  PAYMENTS = 'PAYMENTS'
 }
 
 export interface BusinessProfile {
@@ -33,7 +35,7 @@ export interface StockMovement {
   type: 'IN' | 'OUT';
   quantity: number;
   date: string;
-  reason: 'PROVISION' | 'SALE_DAILY' | 'SALE_CONTRACT' | 'ADJUSTMENT';
+  reason: 'PROVISION' | 'SALE_DAILY' | 'SALE_CONTRACT' | 'ADJUSTMENT' | 'WORKSHOP_OUTPUT';
   referenceId?: string; // ID of the sale if applicable
 }
 
@@ -44,6 +46,7 @@ export interface DailySale {
   method: 'CASH' | 'DIGITAL';
   total: number;
   date: string;
+  destinationAccountId?: number; // ID of the bank account or 'CASH'
 }
 
 export interface ContractSale {
@@ -54,10 +57,21 @@ export interface ContractSale {
   total: number;
   date: string;
   status: 'PENDING' | 'PAID';
+  destinationAccountId?: number;
 }
 
 export interface BankAccount {
   id: number;
-  name: string;
+  bankName: 'BANMET' | 'BANDEC' | 'BPA';
+  name: string; // User alias for the account
+  accountNumber: string;
   amount: number;
+}
+
+export interface PaymentRecord {
+    id: number;
+    amount: number;
+    description: string;
+    date: string;
+    sourceAccountId: number | 'CASH'; // Where the money came from
 }

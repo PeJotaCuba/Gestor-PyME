@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, FileText, Plus, CheckCircle, Clock, Trash2, User, Download, Upload } from 'lucide-react';
-import { Product, DailySale, ContractSale, StockMovement } from '../types';
+import { ShoppingCart, FileText, Plus, CheckCircle, Clock, Trash2, User, Download, Upload, CreditCard } from 'lucide-react';
+import { Product, DailySale, ContractSale, StockMovement, BankAccount } from '../types';
 
 interface SalesViewProps {
   businessName: string;
@@ -9,6 +9,7 @@ interface SalesViewProps {
 export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
   const [activeTab, setActiveTab] = useState<'daily' | 'contract'>('daily');
   const [products, setProducts] = useState<Product[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Storage Keys
@@ -16,28 +17,50 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
   const storageKeyMov = `Gestor_${businessName.replace(/\s+/g, '_')}_movements`;
   const storageKeyDaily = `Gestor_${businessName.replace(/\s+/g, '_')}_sales_daily`;
   const storageKeyContract = `Gestor_${businessName.replace(/\s+/g, '_')}_sales_contract`;
+  const storageKeyAccount = `Gestor_${businessName.replace(/\s+/g, '_')}_accounts`;
 
   // Daily Sale Form State
   const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
   const [qty, setQty] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'DIGITAL'>('CASH');
+  const [selectedBankId, setSelectedBankId] = useState<number | ''>(''); // For Digital Payments
 
   // Contract Sale Form State
   const [clientName, setClientName] = useState('');
   
+  // Payment Modal State
+  const [payingContractId, setPayingContractId] = useState<number | null>(null);
+  const [payMethod, setPayMethod] = useState<'CASH' | 'DIGITAL'>('DIGITAL');
+  const [payBankId, setPayBankId] = useState<number | ''>('');
+
   // Lists
   const [dailySales, setDailySales] = useState<DailySale[]>([]);
   const [contractSales, setContractSales] = useState<ContractSale[]>([]);
 
   useEffect(() => {
     // Load Products
-    const loadedProducts = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
-    setProducts(loadedProducts);
-
+    setProducts(JSON.parse(localStorage.getItem(storageKeyProd) || '[]'));
     // Load Sales
     setDailySales(JSON.parse(localStorage.getItem(storageKeyDaily) || '[]'));
     setContractSales(JSON.parse(localStorage.getItem(storageKeyContract) || '[]'));
+    // Load Accounts
+    const accData = JSON.parse(localStorage.getItem(storageKeyAccount) || '{"cash": 0, "banks": []}');
+    setBankAccounts(accData.banks);
   }, [businessName]);
+
+  const updateAccountBalance = (amount: number, method: 'CASH' | 'DIGITAL', bankId?: number) => {
+      const accData = JSON.parse(localStorage.getItem(storageKeyAccount) || '{"cash": 0, "banks": []}');
+      
+      if (method === 'CASH') {
+          accData.cash += amount;
+      } else if (method === 'DIGITAL' && bankId) {
+          const bank = accData.banks.find((b: BankAccount) => b.id === bankId);
+          if (bank) {
+              bank.amount += amount;
+          }
+      }
+      localStorage.setItem(storageKeyAccount, JSON.stringify(accData));
+  };
 
   const recordStockOut = (productId: number, quantity: number, reason: 'SALE_DAILY' | 'SALE_CONTRACT', refId: number) => {
       const movements: StockMovement[] = JSON.parse(localStorage.getItem(storageKeyMov) || '[]');
@@ -55,16 +78,23 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
 
   const handleAddDailySale = () => {
       if (!selectedProductId || qty <= 0) return;
+      if (paymentMethod === 'DIGITAL' && !selectedBankId) {
+          alert("Debes seleccionar una cuenta bancaria para pagos digitales.");
+          return;
+      }
+
       const product = products.find(p => p.id === Number(selectedProductId));
       if (!product) return;
 
+      const total = product.sale * qty;
       const newSale: DailySale = {
           id: Date.now(),
           productId: product.id,
           quantity: qty,
           method: paymentMethod,
-          total: product.sale * qty,
-          date: new Date().toISOString()
+          total: total,
+          date: new Date().toISOString(),
+          destinationAccountId: paymentMethod === 'DIGITAL' ? Number(selectedBankId) : undefined
       };
 
       const updatedSales = [newSale, ...dailySales];
@@ -72,10 +102,13 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
       localStorage.setItem(storageKeyDaily, JSON.stringify(updatedSales));
       
       recordStockOut(product.id, qty, 'SALE_DAILY', newSale.id);
+      updateAccountBalance(total, paymentMethod, paymentMethod === 'DIGITAL' ? Number(selectedBankId) : undefined);
 
       // Reset
       setQty(1);
       setSelectedProductId('');
+      setPaymentMethod('CASH');
+      setSelectedBankId('');
   };
 
   const handleAddContractSale = () => {
@@ -105,78 +138,27 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
       setSelectedProductId('');
   };
 
-  const markAsPaid = (id: number) => {
-      const updated = contractSales.map(s => s.id === id ? { ...s, status: 'PAID' as const } : s);
+  const handleMarkAsPaid = () => {
+      if (!payingContractId) return;
+      if (payMethod === 'DIGITAL' && !payBankId) {
+          alert("Selecciona la cuenta bancaria de destino.");
+          return;
+      }
+
+      const sale = contractSales.find(s => s.id === payingContractId);
+      if (!sale) return;
+
+      const updated = contractSales.map(s => s.id === payingContractId ? { ...s, status: 'PAID' as const, destinationAccountId: payMethod === 'DIGITAL' ? Number(payBankId) : undefined } : s);
       setContractSales(updated);
       localStorage.setItem(storageKeyContract, JSON.stringify(updated));
+
+      updateAccountBalance(sale.total, payMethod, payMethod === 'DIGITAL' ? Number(payBankId) : undefined);
+      
+      setPayingContractId(null);
+      setPayBankId('');
   };
 
-  // --- Import Logic ---
-  const handleCSVImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-          const content = e.target?.result as string;
-          const lines = content.split('\n');
-          let importedCount = 0;
-          
-          const newSales: DailySale[] = [];
-          const movements: StockMovement[] = JSON.parse(localStorage.getItem(storageKeyMov) || '[]');
-
-          // Assuming format: Name, Quantity, Method (Cash/Digital)
-          lines.forEach(line => {
-              const [name, qStr, methodStr] = line.split(',').map(s => s.trim());
-              if (name && qStr) {
-                  // Find product by name (fuzzy match case insensitive)
-                  const prod = products.find(p => p.name.toLowerCase() === name.toLowerCase());
-                  if (prod) {
-                      const q = parseInt(qStr) || 1;
-                      const method = (methodStr?.toUpperCase() === 'DIGITAL') ? 'DIGITAL' : 'CASH';
-                      const saleId = Date.now() + Math.random();
-                      
-                      const newSale: DailySale = {
-                          id: saleId,
-                          productId: prod.id,
-                          quantity: q,
-                          method: method,
-                          total: prod.sale * q,
-                          date: new Date().toISOString()
-                      };
-                      newSales.push(newSale);
-                      
-                      // Record Movement
-                      movements.push({
-                        id: Date.now() + Math.random(),
-                        productId: prod.id,
-                        type: 'OUT',
-                        quantity: q,
-                        date: new Date().toISOString(),
-                        reason: 'SALE_DAILY',
-                        referenceId: saleId.toString()
-                      });
-
-                      importedCount++;
-                  }
-              }
-          });
-
-          if (importedCount > 0) {
-              const updatedSales = [...newSales, ...dailySales];
-              setDailySales(updatedSales);
-              localStorage.setItem(storageKeyDaily, JSON.stringify(updatedSales));
-              localStorage.setItem(storageKeyMov, JSON.stringify(movements));
-              alert(`Se importaron ${importedCount} ventas correctamente.`);
-          } else {
-              alert("No se encontraron coincidencias de productos en el archivo.");
-          }
-      };
-      reader.readAsText(file);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  // --- Export Logic ---
+  // --- Export Logic (Same as before) ---
   const handleExport = (format: 'csv' | 'doc' | 'pdf') => {
       let content = '';
       let mime = 'text/plain';
@@ -185,7 +167,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
 
       if (format === 'csv') {
           mime = 'text/csv;charset=utf-8;';
-          extension = 'csv'; // Excel opens CSV natively
+          extension = 'csv';
           if (activeTab === 'daily') {
               content = "ID,Fecha,Producto,Cantidad,Metodo,Total\n";
               content += dailySales.map(s => {
@@ -202,7 +184,6 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
       } else if (format === 'doc') {
           mime = 'application/msword';
           extension = 'doc';
-          // HTML Table for Word
           content = `
             <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
             <head><meta charset='utf-8'><title>Reporte de Ventas</title></head><body>
@@ -228,7 +209,6 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
                 </tbody>
             </table></body></html>`;
       } else if (format === 'pdf') {
-          // Trigger Print View
           window.print();
           return;
       }
@@ -261,30 +241,10 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
               </button>
           </div>
           
-          <div className="flex gap-2 w-full md:w-auto">
-              {activeTab === 'daily' && (
-                  <>
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleCSVImport} 
-                        accept=".csv,.txt" 
-                        className="hidden" 
-                    />
-                    <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-white hover:bg-slate-700"
-                    >
-                        <Upload size={14} /> Importar CSV
-                    </button>
-                  </>
-              )}
-              
-              <div className="flex bg-slate-800 rounded-lg border border-slate-700">
-                  <button onClick={() => handleExport('csv')} className="px-3 py-2 text-xs font-bold text-emerald-500 hover:bg-slate-700 border-r border-slate-700" title="Excel (.csv)">XLSX</button>
-                  <button onClick={() => handleExport('doc')} className="px-3 py-2 text-xs font-bold text-blue-500 hover:bg-slate-700 border-r border-slate-700" title="Word (.doc)">DOCX</button>
-                  <button onClick={() => handleExport('pdf')} className="px-3 py-2 text-xs font-bold text-red-500 hover:bg-slate-700" title="PDF (Imprimir)">PDF</button>
-              </div>
+          <div className="flex bg-slate-800 rounded-lg border border-slate-700">
+              <button onClick={() => handleExport('csv')} className="px-3 py-2 text-xs font-bold text-emerald-500 hover:bg-slate-700 border-r border-slate-700">XLSX</button>
+              <button onClick={() => handleExport('doc')} className="px-3 py-2 text-xs font-bold text-blue-500 hover:bg-slate-700 border-r border-slate-700">DOCX</button>
+              <button onClick={() => handleExport('pdf')} className="px-3 py-2 text-xs font-bold text-red-500 hover:bg-slate-700">PDF</button>
           </div>
       </div>
 
@@ -292,7 +252,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
       <div className="flex-1 overflow-y-auto no-scrollbar print:overflow-visible">
           {activeTab === 'daily' ? (
               <div className="space-y-6">
-                  {/* Form - Hidden on Print */}
+                  {/* Form */}
                   <div className="bg-slate-800/50 p-5 rounded-2xl border border-slate-700/50 print:hidden">
                       <h3 className="text-white font-bold mb-4 flex items-center gap-2">
                           <Plus size={18} className="text-orange-500" />
@@ -332,6 +292,22 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
                                     </select>
                               </div>
                           </div>
+
+                          {paymentMethod === 'DIGITAL' && (
+                              <div className="animate-in fade-in slide-in-from-top-2">
+                                  <label className="text-xs font-bold text-slate-400 mb-1 block">Cuenta Destino</label>
+                                  <select 
+                                      value={selectedBankId}
+                                      onChange={(e) => setSelectedBankId(Number(e.target.value))}
+                                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-orange-500"
+                                  >
+                                      <option value="">Seleccionar Banco...</option>
+                                      {bankAccounts.map(b => (
+                                          <option key={b.id} value={b.id}>{b.bankName} - {b.accountNumber} ({b.name})</option>
+                                      ))}
+                                  </select>
+                              </div>
+                          )}
                           
                           <button 
                              onClick={handleAddDailySale}
@@ -346,7 +322,6 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
                   <div>
                       <h3 className="text-slate-400 font-bold text-xs uppercase tracking-wider mb-3">Historial del Día</h3>
                       <div className="space-y-3">
-                          {dailySales.length === 0 && <p className="text-slate-500 text-sm italic">No hay ventas registradas.</p>}
                           {dailySales.map(sale => {
                               const prod = products.find(p => p.id === sale.productId);
                               return (
@@ -366,7 +341,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
               </div>
           ) : (
               <div className="space-y-6">
-                   {/* Form - Hidden on Print */}
+                   {/* Form */}
                   <div className="bg-slate-800/50 p-5 rounded-2xl border border-slate-700/50 print:hidden">
                       <h3 className="text-white font-bold mb-4 flex items-center gap-2">
                           <User size={18} className="text-purple-500" />
@@ -413,7 +388,6 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
                    <div>
                       <h3 className="text-slate-400 font-bold text-xs uppercase tracking-wider mb-3">Cuentas por Cobrar</h3>
                       <div className="space-y-3">
-                          {contractSales.filter(s => s.status === 'PENDING').length === 0 && <p className="text-slate-500 text-sm italic">No hay cobros pendientes.</p>}
                           {contractSales.filter(s => s.status === 'PENDING').map(sale => {
                               const prod = products.find(p => p.id === sale.productId);
                               return (
@@ -432,7 +406,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
                                           </div>
                                       </div>
                                       <button 
-                                        onClick={() => markAsPaid(sale.id)}
+                                        onClick={() => setPayingContractId(sale.id)}
                                         className="w-full py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 rounded-lg text-sm font-bold hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-2 print:hidden"
                                       >
                                           <CheckCircle size={16} />
@@ -465,7 +439,43 @@ export const SalesView: React.FC<SalesViewProps> = ({ businessName }) => {
                           })}
                        </div>
                    </div>
+              </div>
+          )}
 
+          {/* Payment Modal */}
+          {payingContractId && (
+              <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+                  <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-sm animate-in fade-in zoom-in">
+                      <h3 className="text-lg font-bold text-white mb-4">Recibir Pago</h3>
+                      <div className="space-y-4">
+                          <label className="text-xs font-bold text-slate-400 uppercase">Método de Pago</label>
+                          <div className="flex bg-slate-800 p-1 rounded-lg">
+                              <button onClick={() => setPayMethod('CASH')} className={`flex-1 py-2 rounded text-sm font-bold ${payMethod === 'CASH' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}>Efectivo</button>
+                              <button onClick={() => setPayMethod('DIGITAL')} className={`flex-1 py-2 rounded text-sm font-bold ${payMethod === 'DIGITAL' ? 'bg-blue-500 text-white' : 'text-slate-400'}`}>Digital</button>
+                          </div>
+                          
+                          {payMethod === 'DIGITAL' && (
+                               <div>
+                                  <label className="text-xs font-bold text-slate-400 mb-2 block uppercase">Cuenta Destino</label>
+                                  <select 
+                                      value={payBankId}
+                                      onChange={(e) => setPayBankId(Number(e.target.value))}
+                                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none"
+                                  >
+                                      <option value="">Seleccionar Banco...</option>
+                                      {bankAccounts.map(b => (
+                                          <option key={b.id} value={b.id}>{b.bankName} - {b.accountNumber} ({b.name})</option>
+                                      ))}
+                                  </select>
+                               </div>
+                          )}
+
+                          <div className="flex gap-3 pt-2">
+                              <button onClick={() => setPayingContractId(null)} className="flex-1 py-3 rounded-xl font-bold text-slate-400 bg-slate-800">Cancelar</button>
+                              <button onClick={handleMarkAsPaid} className="flex-1 py-3 rounded-xl font-bold text-white bg-emerald-500">Confirmar</button>
+                          </div>
+                      </div>
+                  </div>
               </div>
           )}
       </div>

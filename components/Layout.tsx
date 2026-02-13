@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Signal, Wifi, Battery, DollarSign, Home, BarChart2, Package, Settings, LogOut, Menu, ChevronLeft, CreditCard, ShoppingBag } from 'lucide-react';
+import { Signal, Wifi, Battery, DollarSign, Home, BarChart2, Package, Settings, LogOut, Menu, ChevronLeft, CreditCard, ShoppingBag, Wrench, Banknote } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -91,6 +91,20 @@ export const Layout: React.FC<LayoutProps> = ({
                 collapsed={isSidebarCollapsed}
               />
               <DesktopNavItem 
+                icon={<Wrench size={20}/>} 
+                label="Taller" 
+                active={activeNav === 'workshop'} 
+                onClick={() => onNavigate?.('workshop')} 
+                collapsed={isSidebarCollapsed}
+              />
+              <DesktopNavItem 
+                icon={<Banknote size={20}/>} 
+                label="Pagos" 
+                active={activeNav === 'payments'} 
+                onClick={() => onNavigate?.('payments')} 
+                collapsed={isSidebarCollapsed}
+              />
+              <DesktopNavItem 
                 icon={<CreditCard size={20}/>} 
                 label="Cuenta Corriente" 
                 active={activeNav === 'accounts'} 
@@ -157,6 +171,8 @@ export const Layout: React.FC<LayoutProps> = ({
                                 {activeNav === 'sales' && 'Ventas'}
                                 {activeNav === 'products' && 'Productos'}
                                 {activeNav === 'accounts' && 'Cuenta Corriente'}
+                                {activeNav === 'workshop' && 'Taller'}
+                                {activeNav === 'payments' && 'Pagos'}
                                 {activeNav === 'settings' && 'Configuración'}
                             </h2>
                             <p className="text-xs text-slate-400">Panel de Control</p>
@@ -203,7 +219,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
           {/* MOBILE BOTTOM NAVIGATION */}
           {showNav && (
-            <div className="md:hidden h-20 bg-slate-900/90 backdrop-blur-lg border-t border-slate-800 flex justify-between items-center px-6 pb-2 absolute bottom-0 w-full z-40">
+            <div className="md:hidden h-20 bg-slate-900/90 backdrop-blur-lg border-t border-slate-800 flex justify-between items-center px-6 pb-2 absolute bottom-0 w-full z-40 overflow-x-auto">
               <MobileNavIcon 
                   active={activeNav === 'home'} 
                   onClick={() => onNavigate?.('home')}
@@ -216,23 +232,29 @@ export const Layout: React.FC<LayoutProps> = ({
                   icon={<ShoppingBag size={20} />}
                   label="Ventas"
               />
-              <MobileNavIcon 
+               <MobileNavIcon 
                   active={activeNav === 'products'} 
                   onClick={() => onNavigate?.('products')}
                   icon={<Package size={20} />}
-                  label="Productos"
+                  label="Prod."
+              />
+               <MobileNavIcon 
+                  active={activeNav === 'workshop'} 
+                  onClick={() => onNavigate?.('workshop')}
+                  icon={<Wrench size={20} />}
+                  label="Taller"
+              />
+               <MobileNavIcon 
+                  active={activeNav === 'payments'} 
+                  onClick={() => onNavigate?.('payments')}
+                  icon={<Banknote size={20} />}
+                  label="Pagos"
               />
               <MobileNavIcon 
                   active={activeNav === 'accounts'} 
                   onClick={() => onNavigate?.('accounts')}
                   icon={<CreditCard size={20} />}
                   label="Cuentas"
-              />
-              <MobileNavIcon 
-                  active={activeNav === 'settings'} 
-                  onClick={() => onNavigate?.('settings')}
-                  icon={<Settings size={20} />}
-                  label="Ajustes"
               />
             </div>
           )}
@@ -263,9 +285,9 @@ const DesktopNavItem: React.FC<{ icon: React.ReactNode, label: string, active: b
 const MobileNavIcon: React.FC<{ icon: React.ReactNode, label: string, active: boolean, onClick: () => void }> = ({ icon, label, active, onClick }) => (
     <button 
       onClick={onClick}
-      className={`flex flex-col items-center ${active ? 'text-orange-500' : 'text-slate-500'}`}
+      className={`flex flex-col items-center min-w-[50px] ${active ? 'text-orange-500' : 'text-slate-500'}`}
     >
       {icon}
-      <span className="text-[10px] font-bold mt-1">{label}</span>
+      <span className="text-[10px] font-bold mt-1 whitespace-nowrap">{label}</span>
     </button>
 );

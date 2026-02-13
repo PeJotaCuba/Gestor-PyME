@@ -18,7 +18,9 @@ export const CurrentAccountView: React.FC<CurrentAccountViewProps> = ({ business
   const [tempCash, setTempCash] = useState('');
   
   const [isAddingBank, setIsAddingBank] = useState(false);
+  const [newBankType, setNewBankType] = useState<'BANMET' | 'BANDEC' | 'BPA'>('BANMET');
   const [newBankName, setNewBankName] = useState('');
+  const [newAccountNumber, setNewAccountNumber] = useState('');
   const [newBankAmount, setNewBankAmount] = useState('');
 
   useEffect(() => {
@@ -43,13 +45,15 @@ export const CurrentAccountView: React.FC<CurrentAccountViewProps> = ({ business
   };
 
   const handleAddBank = () => {
-      if (!newBankName || !newBankAmount) return;
+      if (!newBankName || !newBankAmount || !newAccountNumber) return;
       const amount = parseFloat(newBankAmount);
       if (isNaN(amount)) return;
 
       const newAccount: BankAccount = {
           id: Date.now(),
+          bankName: newBankType,
           name: newBankName,
+          accountNumber: newAccountNumber,
           amount: amount
       };
       
@@ -58,6 +62,7 @@ export const CurrentAccountView: React.FC<CurrentAccountViewProps> = ({ business
       
       setIsAddingBank(false);
       setNewBankName('');
+      setNewAccountNumber('');
       setNewBankAmount('');
   };
 
@@ -77,10 +82,10 @@ export const CurrentAccountView: React.FC<CurrentAccountViewProps> = ({ business
       if (format === 'csv') {
           mime = 'text/csv;charset=utf-8;';
           extension = 'csv';
-          content = "Tipo,Nombre,Monto\n";
-          content += `Efectivo,Caja General,${cashAmount}\n`;
-          content += bankAccounts.map(b => `Banco,${b.name},${b.amount}`).join("\n");
-          content += `\nTOTAL,Fondo Unificado,${total}`;
+          content = "Tipo,Banco,Nombre,Cuenta,Monto\n";
+          content += `Efectivo,-,Caja General,-,${cashAmount}\n`;
+          content += bankAccounts.map(b => `Banco,${b.bankName},${b.name},${b.accountNumber},${b.amount}`).join("\n");
+          content += `\nTOTAL,Fondo Unificado,-,-,${total}`;
       } else if (format === 'doc') {
           mime = 'application/msword';
           extension = 'doc';
@@ -90,12 +95,12 @@ export const CurrentAccountView: React.FC<CurrentAccountViewProps> = ({ business
             <h2>Estado de Cuenta Corriente</h2>
             <table border="1" style="border-collapse:collapse; width:100%">
                 <thead style="background-color:#f0f0f0">
-                    <tr><th>Tipo</th><th>Cuenta</th><th>Monto</th></tr>
+                    <tr><th>Tipo</th><th>Banco</th><th>Cuenta</th><th>Monto</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td>Efectivo</td><td>Caja General</td><td>$${cashAmount.toLocaleString()}</td></tr>
-                    ${bankAccounts.map(b => `<tr><td>Banco</td><td>${b.name}</td><td>$${b.amount.toLocaleString()}</td></tr>`).join('')}
-                    <tr style="font-weight:bold"><td>TOTAL</td><td>Fondo Unificado</td><td>$${total.toLocaleString()}</td></tr>
+                    <tr><td>Efectivo</td><td>-</td><td>Caja General</td><td>$${cashAmount.toLocaleString()}</td></tr>
+                    ${bankAccounts.map(b => `<tr><td>Banco</td><td>${b.bankName}</td><td>${b.name}<br/><small>${b.accountNumber}</small></td><td>$${b.amount.toLocaleString()}</td></tr>`).join('')}
+                    <tr style="font-weight:bold"><td>TOTAL</td><td></td><td>Fondo Unificado</td><td>$${total.toLocaleString()}</td></tr>
                 </tbody>
             </table></body></html>`;
       } else if (format === 'pdf') {
@@ -179,12 +184,30 @@ export const CurrentAccountView: React.FC<CurrentAccountViewProps> = ({ business
              {isAddingBank && (
                  <div className="bg-slate-800 p-4 rounded-xl border border-orange-500/30 mb-4 animate-in fade-in slide-in-from-top-2">
                      <div className="grid grid-cols-1 gap-3 mb-3">
+                         <div className="grid grid-cols-2 gap-2">
+                             <select 
+                                value={newBankType} 
+                                onChange={(e) => setNewBankType(e.target.value as any)}
+                                className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none"
+                             >
+                                 <option value="BANMET">BANMET</option>
+                                 <option value="BANDEC">BANDEC</option>
+                                 <option value="BPA">BPA</option>
+                             </select>
+                             <input 
+                                type="text" 
+                                placeholder="Alias (ej. Fiscal)" 
+                                value={newBankName}
+                                onChange={(e) => setNewBankName(e.target.value)}
+                                className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none"
+                             />
+                         </div>
                          <input 
                             type="text" 
-                            placeholder="Nombre (ej. Banco Metropolitano)" 
-                            value={newBankName}
-                            onChange={(e) => setNewBankName(e.target.value)}
-                            className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none"
+                            placeholder="Número de Cuenta / Tarjeta" 
+                            value={newAccountNumber}
+                            onChange={(e) => setNewAccountNumber(e.target.value)}
+                            className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none font-mono"
                          />
                          <input 
                             type="number" 
@@ -206,12 +229,14 @@ export const CurrentAccountView: React.FC<CurrentAccountViewProps> = ({ business
                  {bankAccounts.map(acc => (
                      <div key={acc.id} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex items-center justify-between print:bg-white print:border-black print:text-black">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 print:text-black print:border">
-                                <CreditCard size={24} />
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold text-white print:text-black print:border
+                                ${acc.bankName === 'BANMET' ? 'bg-green-600' : acc.bankName === 'BPA' ? 'bg-red-600' : 'bg-blue-600'}
+                            `}>
+                                {acc.bankName}
                             </div>
                             <div>
                                 <p className="font-bold text-white text-lg print:text-black">{acc.name}</p>
-                                <p className="text-xs text-slate-500 print:text-black">Cuenta / Tarjeta</p>
+                                <p className="text-xs text-slate-500 font-mono print:text-black">{acc.accountNumber}</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-4">

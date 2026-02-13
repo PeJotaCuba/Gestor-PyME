@@ -9,7 +9,9 @@ import { CurrentAccountView } from './views/CurrentAccountView';
 import { AddProductView } from './views/AddProductView';
 import { ImportView } from './views/ImportView';
 import { AddExpenseView } from './views/AddExpenseView';
-import { DollarSign, RefreshCw, Globe, CheckCircle, X } from 'lucide-react';
+import { TallerView } from './views/TallerView';
+import { PaymentsView } from './views/PaymentsView';
+import { DollarSign, RefreshCw, Globe, CheckCircle, X, AlertTriangle, Download } from 'lucide-react';
 
 const App = () => {
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.SETUP);
@@ -22,7 +24,12 @@ const App = () => {
   const [bccRate, setBccRate] = useState('');
   const [isManualRate, setIsManualRate] = useState(false);
   const [isLoadingRate, setIsLoadingRate] = useState(false);
+  const [isRateLinked, setIsRateLinked] = useState(false);
 
+  // Backup Modal State
+  const [showBackupModal, setShowBackupModal] = useState(false);
+
+  // --- Logic for BCC Rate Fetching (Same as before) ---
   const fetchBCCRate = async () => {
     setIsLoadingRate(true);
     try {
@@ -43,21 +50,27 @@ const App = () => {
                     const numbers = text.match(/\d+(\.\d+)?/g);
                     if (numbers) {
                         const values = numbers.map(n => parseFloat(n));
-                        const maxVal = Math.max(...values.filter(v => v > 25 && v < 500));
-                        if (maxVal > 0 && maxVal !== -Infinity) {
-                             foundRate = maxVal;
-                             break;
+                        const populationRateCandidate = values.find(v => v > 150 && v < 600);
+                        if (populationRateCandidate) {
+                             foundRate = populationRateCandidate;
+                             break; 
                         }
                     }
                 }
+            }
+            if (foundRate === 0) {
+                 const allText = doc.body.innerText;
+                 const allNumbers = allText.match(/\d+(\.\d+)?/g);
+                 if (allNumbers) {
+                     const validRates = allNumbers.map(n => parseFloat(n)).filter(n => n > 200 && n < 600);
+                     if (validRates.length > 0) foundRate = validRates[0]; 
+                 }
             }
 
             if (foundRate > 0) {
                 const strRate = foundRate.toString();
                 setBccRate(strRate);
-                if (!isManualRate) {
-                    setExchangeRate(strRate);
-                }
+                if (!isManualRate) setExchangeRate(strRate);
             }
         }
     } catch (error) {
@@ -67,7 +80,76 @@ const App = () => {
     }
   };
 
+  // --- Backup Logic ---
+  const checkBackupStatus = () => {
+      const lastBackup = localStorage.getItem('Gestor_LastBackupTime');
+      const lastPrompt = localStorage.getItem('Gestor_LastBackupPrompt');
+      const now = new Date();
+      
+      // Determine 6 AM today
+      const today6am = new Date();
+      today6am.setHours(6, 0, 0, 0);
+      
+      // If now is before 6am, we look at yesterday's 6am cycle, but request says "start counting from 6am".
+      // So if it's 5 AM, we don't prompt yet for "today".
+      
+      if (now < today6am) return; // Wait until 6 AM
+
+      let shouldPrompt = false;
+
+      if (!lastBackup) {
+          shouldPrompt = true;
+      } else {
+          const lastBackupDate = new Date(lastBackup);
+          // If last backup was before today 6am, we need a new one
+          if (lastBackupDate < today6am) {
+              shouldPrompt = true;
+          }
+      }
+
+      if (shouldPrompt) {
+          // Check if we prompted recently (within 12 hours) and user cancelled
+          if (lastPrompt) {
+              const lastPromptDate = new Date(lastPrompt);
+              const diffHours = (now.getTime() - lastPromptDate.getTime()) / (1000 * 60 * 60);
+              if (diffHours < 12) {
+                  return; // Don't annoy user yet
+              }
+          }
+          setShowBackupModal(true);
+          localStorage.setItem('Gestor_LastBackupPrompt', now.toISOString());
+      }
+  };
+
+  const handlePerformBackup = () => {
+      // Reuse the backup logic logic via a simulated click or call
+      // Since SetupView has the logic, we'll implement a simple one here for the global modal
+      let csvContent = "data:text/csv;charset=utf-8,KEY,VALUE_JSON\n";
+      for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('Gestor_')) {
+              const val = localStorage.getItem(key);
+              if (val) {
+                  const escapedVal = val.replace(/"/g, '""');
+                  csvContent += `${key},"${escapedVal}"\n`;
+              }
+          }
+      }
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `GestorPyME_Backup_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Register success
+      localStorage.setItem('Gestor_LastBackupTime', new Date().toISOString());
+      setShowBackupModal(false);
+  };
+
   useEffect(() => {
+    // Initialization
     let foundConfig = false;
     let configName = '';
     let linkExchange = false;
@@ -85,18 +167,17 @@ const App = () => {
 
     if (foundConfig) {
         setBusinessName(configName);
+        setIsRateLinked(linkExchange);
         setCurrentView(ViewState.DASHBOARD);
+        checkBackupStatus(); // Check backup on load
         
         if (linkExchange) {
             const safeName = configName.replace(/\s+/g, '_');
             const rateKey = `Gestor_${safeName}_exchangeRate`;
             const rateData = JSON.parse(localStorage.getItem(rateKey) || '{}');
-            
             if (rateData.rate) setExchangeRate(rateData.rate);
             if (rateData.isManual) setIsManualRate(true);
-
             fetchBCCRate();
-
             const today = new Date().toISOString().split('T')[0];
             if (!rateData.isManual && rateData.date !== today) {
                 setShowExchangeModal(true); 
@@ -105,10 +186,15 @@ const App = () => {
     } else {
         setCurrentView(ViewState.SETUP);
     }
+
+    // Interval to check backup status periodically (e.g., every hour) if app stays open
+    const interval = setInterval(checkBackupStatus, 3600000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleSetupComplete = (name: string, linkExchangeRate: boolean, initialRate?: string, isManual?: boolean) => {
     setBusinessName(name);
+    setIsRateLinked(linkExchangeRate);
     const safeName = name.replace(/\s+/g, '_');
     localStorage.setItem(`Gestor_${safeName}_config`, JSON.stringify({
         lastAccess: new Date().toISOString(),
@@ -149,17 +235,13 @@ const App = () => {
 
   const handleNavigation = (nav: string) => {
       setActiveNav(nav);
-      if (nav === 'settings') {
-          setCurrentView(ViewState.SETUP);
-      } else if (nav === 'home') {
-          setCurrentView(ViewState.DASHBOARD);
-      } else if (nav === 'sales') {
-          setCurrentView(ViewState.SALES);
-      } else if (nav === 'products') {
-          setCurrentView(ViewState.PRODUCTS);
-      } else if (nav === 'accounts') {
-          setCurrentView(ViewState.CURRENT_ACCOUNT);
-      }
+      if (nav === 'settings') setCurrentView(ViewState.SETUP);
+      else if (nav === 'home') setCurrentView(ViewState.DASHBOARD);
+      else if (nav === 'sales') setCurrentView(ViewState.SALES);
+      else if (nav === 'products') setCurrentView(ViewState.PRODUCTS);
+      else if (nav === 'accounts') setCurrentView(ViewState.CURRENT_ACCOUNT);
+      else if (nav === 'workshop') setCurrentView(ViewState.WORKSHOP);
+      else if (nav === 'payments') setCurrentView(ViewState.PAYMENTS);
   };
 
   const renderView = () => {
@@ -174,6 +256,10 @@ const App = () => {
         return <ProductsListView businessName={businessName} />;
       case ViewState.CURRENT_ACCOUNT:
         return <CurrentAccountView businessName={businessName} />;
+      case ViewState.WORKSHOP:
+        return <TallerView businessName={businessName} />;
+      case ViewState.PAYMENTS:
+        return <PaymentsView businessName={businessName} />;
       case ViewState.ADD_PRODUCT:
         return (
             <AddProductView 
@@ -191,7 +277,7 @@ const App = () => {
     }
   };
 
-  const showNav = currentView === ViewState.DASHBOARD || currentView === ViewState.SALES || currentView === ViewState.PRODUCTS || currentView === ViewState.CURRENT_ACCOUNT;
+  const showNav = currentView !== ViewState.ADD_PRODUCT && currentView !== ViewState.IMPORT_PRODUCT && currentView !== ViewState.ADD_EXPENSE && currentView !== ViewState.SETUP;
   const isSetup = currentView === ViewState.SETUP;
 
   return (
@@ -200,13 +286,46 @@ const App = () => {
         activeNav={activeNav}
         onNavigate={handleNavigation}
         onAddClick={() => setCurrentView(ViewState.ADD_PRODUCT)}
-        currentExchangeRate={exchangeRate} 
+        currentExchangeRate={isRateLinked ? exchangeRate : undefined} 
         onOpenExchange={() => setShowExchangeModal(true)}
         isSetupMode={isSetup}
         businessName={businessName}
     >
       {renderView()}
 
+      {/* Backup Modal */}
+      {showBackupModal && (
+          <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+              <div className="bg-slate-900 border border-red-500/50 p-6 rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in">
+                  <div className="flex flex-col items-center text-center mb-6">
+                      <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
+                          <AlertTriangle size={32} className="text-red-500" />
+                      </div>
+                      <h2 className="text-xl font-bold text-white">Copia de Seguridad Necesaria</h2>
+                      <p className="text-sm text-slate-400 mt-2">
+                          Ha pasado más de un día desde tu último respaldo. Es importante guardar tus datos para evitar pérdidas.
+                      </p>
+                  </div>
+                  <div className="flex gap-3">
+                      <button 
+                          onClick={() => setShowBackupModal(false)} 
+                          className="flex-1 py-3 bg-slate-800 text-slate-400 font-bold rounded-xl hover:bg-slate-700"
+                      >
+                          Más tarde
+                      </button>
+                      <button 
+                          onClick={handlePerformBackup}
+                          className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 flex items-center justify-center gap-2"
+                      >
+                          <Download size={18} />
+                          Guardar Ahora
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Exchange Rate Modal (Existing) */}
       {showExchangeModal && (
           <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
               <div className="bg-slate-900 border border-orange-500/30 p-6 rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-300">

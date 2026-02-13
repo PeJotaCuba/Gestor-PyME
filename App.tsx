@@ -6,7 +6,7 @@ import { DashboardView } from './views/DashboardView';
 import { AddProductView } from './views/AddProductView';
 import { ImportView } from './views/ImportView';
 import { AddExpenseView } from './views/AddExpenseView';
-import { DollarSign, RefreshCw } from 'lucide-react';
+import { DollarSign, RefreshCw, Globe } from 'lucide-react';
 
 const App = () => {
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.SETUP);
@@ -16,44 +16,36 @@ const App = () => {
   const [exchangeRate, setExchangeRate] = useState('');
   const [isLoadingRate, setIsLoadingRate] = useState(false);
 
-  // Función para obtener tasa del BCC (para uso diario)
   const fetchBCCRate = async () => {
     setIsLoadingRate(true);
-    // Timeout para evitar cuelgues
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
     try {
-        const response = await fetch('https://api.bc.gob.cu/v1/tasas-de-cambio/activas', {
-            signal: controller.signal
-        });
-        if (response.ok) {
-            const data = await response.json();
+        const targetUrl = 'https://www.bc.gob.cu/tasas-de-cambio';
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+        
+        const response = await fetch(proxyUrl);
+        const data = await response.json();
+        
+        if (data.contents) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(data.contents, 'text/html');
+            
+            const rows = Array.from(doc.querySelectorAll('tr'));
             let foundRate = 0;
 
-             // Helper function to extract numeric rate safely
-            const parseRate = (item: any) => {
-                return parseFloat(item?.Tasa || item?.rate || item?.venta || '0');
-            };
-
-            if (Array.isArray(data)) {
-                // Filter specifically for USD
-                const usdItems = data.filter((item: any) => 
-                    item.Moneda === 'USD' || item.currency === 'USD'
-                );
-                
-                if (usdItems.length > 0) {
-                    // Logic: PyMEs typically need the "CADECA" or "Población" rate (Segment 3), 
-                    // which is usually higher than the fixed official accounting rate (24).
-                    // We sort descending and pick the highest available rate.
-                    const maxRateItem = usdItems.reduce((prev, current) => {
-                        return parseRate(current) > parseRate(prev) ? current : prev;
-                    });
-                    foundRate = parseRate(maxRateItem);
+            for (const row of rows) {
+                const text = row.innerText || row.textContent || '';
+                if (text.includes('USD')) {
+                    const numbers = text.match(/\d+(\.\d+)?/g);
+                    if (numbers) {
+                        const values = numbers.map(n => parseFloat(n));
+                        // Buscar tasa > 25 para identificar Segmento III (vs Oficial 24)
+                        const maxVal = Math.max(...values.filter(v => v > 25 && v < 500));
+                        if (maxVal > 0 && maxVal !== -Infinity) {
+                             foundRate = maxVal;
+                             break;
+                        }
+                    }
                 }
-            } 
-            else if (data && typeof data === 'object') {
-                 if (data.USD) foundRate = parseRate(data.USD);
             }
 
             if (foundRate > 0) {
@@ -61,10 +53,8 @@ const App = () => {
             }
         }
     } catch (error) {
-        // Silent fail for daily check, user inputs manual
-        console.log("Daily BCC fetch skipped or failed");
+        console.log("Daily BCC fetch failed or skipped");
     } finally {
-        clearTimeout(timeoutId);
         setIsLoadingRate(false);
     }
   };
@@ -99,8 +89,8 @@ const App = () => {
             
             // If date is different (new day), trigger modal
             if (lastRateData.date !== today) {
-                fetchBCCRate(); 
                 setShowExchangeModal(true);
+                fetchBCCRate(); // Fetch new rate from web
             }
         }
     } else {
@@ -185,7 +175,7 @@ const App = () => {
               <div className="bg-slate-900 border border-orange-500/30 p-6 rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-300">
                   <div className="flex items-center gap-3 mb-4">
                       <div className="p-3 bg-orange-500/20 rounded-full text-orange-500">
-                          <DollarSign size={24} />
+                          <Globe size={24} />
                       </div>
                       <div>
                           <h2 className="text-xl font-bold text-white">Tasa del Día</h2>
@@ -212,7 +202,7 @@ const App = () => {
                           ) : (
                               <div className="w-1 h-1 rounded-full bg-orange-500 mt-1.5"></div>
                           )}
-                          <p>Se intenta tomar por defecto la tasa del BCC (Banco Central de Cuba). Verifique si es correcta.</p>
+                          <p>Consultando bc.gob.cu (Segmento III) vía proxy...</p>
                       </div>
                   </div>
 

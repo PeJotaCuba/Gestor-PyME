@@ -1,5 +1,5 @@
 import React from 'react';
-import { Signal, Wifi, Battery } from 'lucide-react';
+import { Signal, Wifi, Battery, DollarSign, RefreshCw } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -7,6 +7,9 @@ interface LayoutProps {
   onNavigate?: (nav: string) => void;
   onAddClick?: () => void;
   activeNav?: string;
+  // New props for global exchange rate
+  currentExchangeRate?: string;
+  onOpenExchange?: () => void;
 }
 
 export const Layout: React.FC<LayoutProps> = ({ 
@@ -14,19 +17,37 @@ export const Layout: React.FC<LayoutProps> = ({
   showNav = false, 
   onNavigate, 
   onAddClick,
-  activeNav = 'home'
+  activeNav = 'home',
+  currentExchangeRate,
+  onOpenExchange
 }) => {
   return (
     <div className="min-h-screen w-full flex justify-center bg-black">
       <div className="w-full max-w-md bg-slate-900 h-screen relative flex flex-col overflow-hidden shadow-2xl sm:rounded-3xl sm:h-[95vh] sm:mt-[2.5vh] border-slate-800 sm:border">
         
-        {/* iOS Status Bar Simulation */}
-        <div className="h-12 flex items-center justify-between px-6 pt-2 shrink-0 z-50">
+        {/* iOS Status Bar Simulation + Global Rate Trigger */}
+        <div className="h-14 flex items-center justify-between px-6 pt-2 shrink-0 z-50 bg-slate-900/90 backdrop-blur-sm border-b border-slate-800/50">
           <span className="text-white text-sm font-semibold">9:41</span>
-          <div className="flex items-center space-x-2 text-white">
-            <Signal size={16} fill="currentColor" />
-            <Wifi size={16} />
-            <Battery size={20} />
+          
+          <div className="flex items-center gap-4">
+             {/* Global Exchange Rate Pill */}
+             {currentExchangeRate && (
+                 <button 
+                    onClick={onOpenExchange}
+                    className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full py-1 px-2.5 transition-all active:scale-95"
+                 >
+                    <div className="w-4 h-4 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-500">
+                        <DollarSign size={10} strokeWidth={3} />
+                    </div>
+                    <span className="text-[10px] font-bold text-white">1 = ${parseFloat(currentExchangeRate).toFixed(0)}</span>
+                 </button>
+             )}
+
+             <div className="flex items-center space-x-2 text-white">
+                <Signal size={16} fill="currentColor" />
+                <Wifi size={16} />
+                <Battery size={20} />
+             </div>
           </div>
         </div>
 

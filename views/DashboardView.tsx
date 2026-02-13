@@ -1,10 +1,11 @@
-import React, { useRef } from 'react';
-import { Eye, Wallet, Package, PlusSquare, Receipt, Zap, Truck, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import React, { useRef, useState } from 'react';
+import { Wallet, Package, PlusSquare, Receipt, Zap, Truck, TrendingUp, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { ViewState } from '../types';
 
 interface DashboardViewProps {
   onChangeView: (view: ViewState) => void;
+  businessName: string;
 }
 
 // Mock Data
@@ -12,7 +13,6 @@ const pieData = [
   { name: 'Costos Fijos', value: 27852 },
   { name: 'Variables', value: 14998 },
 ];
-// Updated colors: Orange for primary, Fuchsia/Pink for secondary to maintain contrast
 const COLORS = ['#f97316', '#ec4899'];
 
 const barData = [
@@ -25,8 +25,9 @@ const barData = [
   { name: 'Jul', amt: 4300 },
 ];
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView }) => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, businessName }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showFullName, setShowFullName] = useState(false);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -38,6 +39,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView }) =>
     }
   };
 
+  const getInitials = (name: string) => {
+      if (!name) return 'GP';
+      const parts = name.trim().split(' ');
+      if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
+
   return (
     <div className="px-5 pt-2 pb-32 space-y-6">
       {/* Header */}
@@ -46,13 +54,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView }) =>
           <h1 className="text-2xl font-bold tracking-tight text-white">Tablero de Control</h1>
           <p className="text-xs text-slate-400 font-medium">Analítica PyME • CUP</p>
         </div>
+        
         <div className="flex items-center space-x-3">
-          <button className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500">
-            <Eye size={20} />
-          </button>
-          <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-orange-500/20 bg-slate-700">
-            <img src="https://picsum.photos/100/100" alt="Profile" className="w-full h-full object-cover" />
-          </div>
+            {/* Initials / Full Name Toggle */}
+            <div 
+                onClick={() => setShowFullName(!showFullName)}
+                className={`h-10 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center cursor-pointer transition-all duration-300 overflow-hidden relative shadow-lg
+                    ${showFullName ? 'px-4 w-auto' : 'w-10'}`}
+            >
+                <div className={`flex items-center justify-center whitespace-nowrap transition-all duration-300`}>
+                    {showFullName ? (
+                        <span className="text-xs font-bold text-white animate-in fade-in slide-in-from-right-2">{businessName}</span>
+                    ) : (
+                        <span className="text-sm font-bold text-orange-500">{getInitials(businessName)}</span>
+                    )}
+                </div>
+            </div>
+
+             {/* Settings Button */}
+             <button 
+                onClick={() => onChangeView(ViewState.SETUP)}
+                className="w-10 h-10 rounded-full bg-slate-800/50 border border-slate-700 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                title="Configurar Negocio"
+            >
+                <Settings size={20} />
+            </button>
         </div>
       </header>
 

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Store, Package, Layers, ArrowRight, DollarSign, X, RefreshCw, Globe } from 'lucide-react';
+import { Store, Package, Layers, ArrowRight, DollarSign, X, RefreshCw, Globe, CheckCircle } from 'lucide-react';
 
 interface SetupViewProps {
-  onComplete: (name: string, linkExchangeRate: boolean, initialRate?: string) => void;
+  onComplete: (name: string, linkExchangeRate: boolean, initialRate?: string, isManual?: boolean) => void;
 }
 
 export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
@@ -12,15 +12,17 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
   // Exchange Rate Logic
   const [linkExchangeRate, setLinkExchangeRate] = useState(false);
   const [showRateModal, setShowRateModal] = useState(false);
-  const [exchangeRate, setExchangeRate] = useState('');
+  
+  // Dual State for Rate
+  const [exchangeRate, setExchangeRate] = useState(''); // The active rate value
+  const [bccRate, setBccRate] = useState(''); // The detected BCC rate
+  const [isManual, setIsManual] = useState(false); // Toggle state
   const [isLoadingRate, setIsLoadingRate] = useState(false);
 
   const fetchBCCRate = async () => {
     setIsLoadingRate(true);
-    setExchangeRate(''); // Clear previous
     
     try {
-        // Usamos un proxy para evitar bloqueo CORS y leer el HTML del BCC
         const targetUrl = 'https://www.bc.gob.cu/tasas-de-cambio';
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
         
@@ -31,29 +33,19 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
             const parser = new DOMParser();
             const doc = parser.parseFromString(data.contents, 'text/html');
             
-            // Lógica heurística para encontrar la tasa del Segmento III (CADECA/Población)
-            // El sitio del BCC tiene varias tablas. La tasa oficial es 24. La de población es > 100.
-            // Buscamos todas las filas que contengan "USD"
             const rows = Array.from(doc.querySelectorAll('tr'));
             let foundRate = 0;
 
             for (const row of rows) {
                 const text = row.innerText || row.textContent || '';
                 if (text.includes('USD')) {
-                    // Extraer todos los números de la fila
                     const numbers = text.match(/\d+(\.\d+)?/g);
                     if (numbers) {
                         const values = numbers.map(n => parseFloat(n));
-                        // Buscamos un valor que parezca una tasa de venta de población (mayor a 25 para descartar el oficial 24)
-                        const possibleRate = values.find(v => v > 25 && v < 500); // Rango seguro
-                        
-                        // Si encontramos uno, asumimos que es el de venta (generalmente el más alto de la fila si hay compra/venta)
-                        if (possibleRate) {
-                             // En tablas de compra/venta, el valor más alto suele ser la Venta.
-                             // Segmento III tiene Compra y Venta. Tomamos el mayor para estar seguros (Venta).
-                             const maxVal = Math.max(...values.filter(v => v > 25 && v < 500));
+                        const maxVal = Math.max(...values.filter(v => v > 25 && v < 500));
+                        if (maxVal > 0 && maxVal !== -Infinity) {
                              foundRate = maxVal;
-                             break; // Encontrado, detenemos búsqueda
+                             break;
                         }
                     }
                 }
@@ -61,12 +53,14 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
 
             if (foundRate > 0) {
                 console.log("Tasa Segmento III detectada:", foundRate);
-                setExchangeRate(foundRate.toString());
+                setBccRate(foundRate.toString());
+                if (!isManual) {
+                    setExchangeRate(foundRate.toString());
+                }
             }
         }
     } catch (error) {
         console.warn("Error leyendo sitio BCC", error);
-        // Fallar silenciosamente, el usuario puede escribir manual
     } finally {
         setIsLoadingRate(false);
     }
@@ -74,7 +68,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
 
   const handleToggleExchange = () => {
       if (!linkExchangeRate) {
-          // Turning ON: Show modal and fetch
+          // Turning ON
           setLinkExchangeRate(true);
           setShowRateModal(true);
           fetchBCCRate();
@@ -82,19 +76,29 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
           // Turning OFF
           setLinkExchangeRate(false);
           setExchangeRate('');
+          setBccRate('');
       }
   };
 
   const confirmRate = () => {
       setShowRateModal(false);
-      // Link stays true
   };
 
   const cancelRate = () => {
       setShowRateModal(false);
-      setLinkExchangeRate(false); // Revert toggle
+      setLinkExchangeRate(false);
       setExchangeRate('');
   };
+
+  const handleManualToggle = (checked: boolean) => {
+      setIsManual(checked);
+      if (!checked && bccRate) {
+          // If turning manual OFF, revert to BCC rate
+          setExchangeRate(bccRate);
+      }
+  };
+
+  const isValid = name.trim().length > 0;
 
   return (
     <div className="flex flex-col min-h-full px-6 pt-10 pb-12 relative">
@@ -112,12 +116,14 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
       {/* Form */}
       <div className="space-y-6 flex-1">
         <div className="space-y-2">
-          <label className="block text-sm font-semibold text-slate-300 ml-1">Nombre del Negocio</label>
+          <label className="block text-sm font-semibold text-slate-300 ml-1">
+            Nombre del Negocio <span className="text-orange-500">*</span>
+          </label>
           <input 
             type="text" 
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full bg-slate-800 border-slate-700 rounded-xl px-4 py-4 text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all duration-200"
+            className={`w-full bg-slate-800 border rounded-xl px-4 py-4 text-white focus:ring-2 focus:ring-orange-500 outline-none transition-all duration-200 ${!isValid && name !== '' ? 'border-red-500/50' : 'border-slate-700'}`}
             placeholder="ej. Comercializadora Azul"
           />
         </div>
@@ -129,7 +135,6 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
               <option value="CUP">CUP - Peso Cubano</option>
               <option value="USD">USD - Dólar Estadounidense</option>
               <option value="EUR">EUR - Euro</option>
-              <option value="MXN">MXN - Peso Mexicano</option>
             </select>
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -155,110 +160,125 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
             </div>
         </div>
         
-        {/* Helper text showing current rate if set */}
+        {/* Helper text */}
         {linkExchangeRate && exchangeRate && !showRateModal && (
             <div className="px-4 py-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                 <p className="text-xs text-emerald-400 font-medium">Tasa configurada: <strong>1 USD = ${exchangeRate} CUP</strong></p>
+                 <p className="text-xs text-emerald-400 font-medium">
+                     Tasa: <strong>${exchangeRate}</strong> {isManual ? '(Manual)' : '(BCC)'}
+                 </p>
             </div>
         )}
 
         <div className="space-y-3">
           <label className="block text-sm font-semibold text-slate-300 ml-1">Tipo de Negocio</label>
-          
-          <div 
-            onClick={() => setBusinessType('retail')}
-            className={`flex items-center p-3 border-2 rounded-xl cursor-pointer transition-all ${businessType === 'retail' ? 'border-orange-500 bg-orange-500/10' : 'border-slate-800 bg-slate-800'}`}
-          >
-            <div className={`p-2 rounded-lg mr-3 ${businessType === 'retail' ? 'bg-orange-500/20' : 'bg-slate-700'}`}>
-              <Store className={businessType === 'retail' ? 'text-orange-500' : 'text-slate-400'} size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="font-bold text-white text-sm">Minorista</p>
-            </div>
-            {businessType === 'retail' && <div className="w-3 h-3 rounded-full bg-orange-500"></div>}
+          <div className="grid grid-cols-1 gap-3">
+              {['retail', 'wholesale', 'mixed'].map((type) => (
+                  <div 
+                    key={type}
+                    onClick={() => setBusinessType(type)}
+                    className={`flex items-center p-3 border-2 rounded-xl cursor-pointer transition-all ${businessType === type ? 'border-orange-500 bg-orange-500/10' : 'border-slate-800 bg-slate-800'}`}
+                  >
+                    <div className={`p-2 rounded-lg mr-3 ${businessType === type ? 'bg-orange-500/20' : 'bg-slate-700'}`}>
+                      {type === 'retail' && <Store className={businessType === type ? 'text-orange-500' : 'text-slate-400'} size={20} />}
+                      {type === 'wholesale' && <Package className={businessType === type ? 'text-orange-500' : 'text-slate-400'} size={20} />}
+                      {type === 'mixed' && <Layers className={businessType === type ? 'text-orange-500' : 'text-slate-400'} size={20} />}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-white text-sm capitalize">{type === 'mixed' ? 'Modelo Mixto' : (type === 'retail' ? 'Minorista' : 'Mayorista')}</p>
+                    </div>
+                    {businessType === type && <div className="w-3 h-3 rounded-full bg-orange-500"></div>}
+                  </div>
+              ))}
           </div>
-
-          <div 
-            onClick={() => setBusinessType('wholesale')}
-            className={`flex items-center p-3 border-2 rounded-xl cursor-pointer transition-all ${businessType === 'wholesale' ? 'border-orange-500 bg-orange-500/10' : 'border-slate-800 bg-slate-800'}`}
-          >
-            <div className={`p-2 rounded-lg mr-3 ${businessType === 'wholesale' ? 'bg-orange-500/20' : 'bg-slate-700'}`}>
-              <Package className={businessType === 'wholesale' ? 'text-orange-500' : 'text-slate-400'} size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="font-bold text-white text-sm">Mayorista</p>
-            </div>
-            {businessType === 'wholesale' && <div className="w-3 h-3 rounded-full bg-orange-500"></div>}
-          </div>
-          
-           <div 
-            onClick={() => setBusinessType('mixed')}
-            className={`flex items-center p-3 border-2 rounded-xl cursor-pointer transition-all ${businessType === 'mixed' ? 'border-orange-500 bg-orange-500/10' : 'border-slate-800 bg-slate-800'}`}
-          >
-            <div className={`p-2 rounded-lg mr-3 ${businessType === 'mixed' ? 'bg-orange-500/20' : 'bg-slate-700'}`}>
-              <Layers className={businessType === 'mixed' ? 'text-orange-500' : 'text-slate-400'} size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="font-bold text-white text-sm">Modelo Mixto</p>
-            </div>
-            {businessType === 'mixed' && <div className="w-3 h-3 rounded-full bg-orange-500"></div>}
-          </div>
-
         </div>
       </div>
 
       {/* Bottom Button */}
       <div className="mt-8">
         <button 
-            onClick={() => onComplete(name || 'Mi Negocio', linkExchangeRate, exchangeRate)}
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-orange-500/20 transition-all active:scale-[0.98] flex items-center justify-center space-x-2"
+            onClick={() => isValid && onComplete(name, linkExchangeRate, exchangeRate, isManual)}
+            disabled={!isValid}
+            className={`w-full font-bold py-4 rounded-xl shadow-lg transition-all flex items-center justify-center space-x-2 
+                ${isValid 
+                    ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/20 active:scale-[0.98]' 
+                    : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700 opacity-70'}`}
         >
             <span>Continuar</span>
             <ArrowRight size={20} />
         </button>
       </div>
 
-       {/* Inline Modal for Exchange Rate with HTML Parsing */}
+       {/* Enhanced Exchange Rate Modal */}
        {showRateModal && (
           <div className="absolute inset-0 z-50 bg-slate-900/95 backdrop-blur-sm flex flex-col justify-end sm:justify-center p-6 rounded-3xl animate-in fade-in zoom-in duration-200">
               <div className="bg-slate-800 border border-orange-500/30 p-6 rounded-2xl w-full shadow-2xl relative">
                   <button onClick={cancelRate} className="absolute top-4 right-4 text-slate-400 hover:text-white">
                       <X size={20} />
                   </button>
-                  <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-3 mb-6">
                       <div className="p-3 bg-orange-500/20 rounded-full text-orange-500">
                           <Globe size={24} />
                       </div>
                       <div>
                           <h2 className="text-xl font-bold text-white">Configurar Tasa</h2>
-                          <p className="text-xs text-slate-400">Leyendo bc.gob.cu (Seg. III)</p>
+                          <p className="text-xs text-slate-400">Actualiza el valor del USD</p>
                       </div>
                   </div>
                   
+                  {/* BCC Rate Display */}
+                  <div className="mb-6 bg-slate-900/50 p-4 rounded-xl border border-slate-700 relative overflow-hidden">
+                      <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Tasa BCC (Seg. III)</span>
+                          {isLoadingRate && <RefreshCw size={12} className="animate-spin text-orange-500"/>}
+                      </div>
+                      {bccRate ? (
+                          <div className="flex items-end gap-2">
+                              <span className="text-2xl font-extrabold text-emerald-400">${bccRate}</span>
+                              <span className="text-sm font-bold text-slate-500 mb-1">CUP</span>
+                          </div>
+                      ) : (
+                          <span className="text-sm text-slate-500 italic">Cargando tasa oficial...</span>
+                      )}
+                      {!isManual && bccRate && (
+                          <div className="absolute top-2 right-2">
+                              <CheckCircle size={16} className="text-emerald-500" />
+                          </div>
+                      )}
+                  </div>
+
+                  {/* Manual Toggle */}
+                  <div className="flex items-center justify-between mb-4 px-1">
+                      <span className="text-sm font-bold text-white">Editar Tasa Manualmente</span>
+                      <div 
+                            onClick={() => handleManualToggle(!isManual)}
+                            className={`w-11 h-6 rounded-full relative cursor-pointer transition-colors ${isManual ? 'bg-orange-500' : 'bg-slate-600'}`}
+                        >
+                            <div className={`absolute top-[2px] left-[2px] bg-white rounded-full h-5 w-5 transition-transform ${isManual ? 'translate-x-full' : ''}`}></div>
+                        </div>
+                  </div>
+                  
                   <div className="mb-6 relative">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">1 USD equivale a:</label>
                       <div className="flex items-center gap-2">
                           <input 
                               type="number" 
                               value={exchangeRate}
                               onChange={(e) => setExchangeRate(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl text-2xl font-bold text-white focus:ring-2 focus:ring-orange-500 outline-none placeholder-slate-600"
-                              placeholder={isLoadingRate ? "..." : "0.00"}
-                              autoFocus
+                              disabled={!isManual}
+                              className={`w-full border p-4 rounded-xl text-2xl font-bold text-white outline-none transition-all
+                                  ${isManual 
+                                    ? 'bg-slate-900 border-orange-500/50 focus:ring-2 focus:ring-orange-500' 
+                                    : 'bg-slate-800/50 border-transparent text-slate-400 cursor-not-allowed'
+                                  }`}
+                              placeholder="0.00"
                           />
                           <span className="text-xl font-bold text-slate-400">CUP</span>
                       </div>
-                      <div className="mt-3 flex items-start gap-2 bg-slate-900/50 p-2 rounded-lg border border-slate-700/50">
-                          {isLoadingRate ? (
-                              <RefreshCw size={14} className="animate-spin text-orange-500 mt-0.5 shrink-0" />
-                          ) : (
-                              <div className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 shrink-0"></div>
-                          )}
-                          <p className="text-[10px] text-slate-400 leading-tight">
-                              Consultando web del BCC (Segmento III: Recanje/Población). Si la conexión falla, ingrese manualmente.
-                          </p>
-                      </div>
+                      <p className="text-[10px] text-slate-500 mt-2">
+                          {isManual 
+                            ? 'Estás editando la tasa manualmente. Este valor anulará la tasa oficial.' 
+                            : 'Usando la tasa detectada automáticamente del Banco Central de Cuba.'}
+                      </p>
                   </div>
 
                   <button 
@@ -266,7 +286,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
                       disabled={!exchangeRate}
                       className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-orange-500/20"
                   >
-                      Confirmar y Vincular
+                      Confirmar
                   </button>
               </div>
           </div>

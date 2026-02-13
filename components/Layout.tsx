@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Signal, Wifi, Battery, DollarSign, Home, BarChart2, Package, Settings, LogOut, Menu, ChevronLeft } from 'lucide-react';
+import { Signal, Wifi, Battery, DollarSign, Home, BarChart2, Package, Settings, LogOut, Menu, ChevronLeft, CreditCard, ShoppingBag } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,7 +9,8 @@ interface LayoutProps {
   activeNav?: string;
   currentExchangeRate?: string;
   onOpenExchange?: () => void;
-  isSetupMode?: boolean; // New prop to control sidebar visibility
+  isSetupMode?: boolean;
+  businessName?: string;
 }
 
 export const Layout: React.FC<LayoutProps> = ({ 
@@ -20,14 +21,23 @@ export const Layout: React.FC<LayoutProps> = ({
   activeNav = 'home',
   currentExchangeRate,
   onOpenExchange,
-  isSetupMode = false
+  isSetupMode = false,
+  businessName = ''
 }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showFullNamePC, setShowFullNamePC] = useState(false);
+
+  const getInitials = (name: string) => {
+      if (!name) return 'GP';
+      const parts = name.trim().split(' ');
+      if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
 
   return (
     <div className="min-h-screen w-full bg-slate-950 flex justify-center md:justify-start transition-all duration-300">
       
-      {/* DESKTOP SIDEBAR - Visible only on MD screens and up, AND if NOT in setup mode */}
+      {/* DESKTOP SIDEBAR */}
       {!isSetupMode && (
         <aside className={`hidden md:flex flex-col bg-slate-900 border-r border-slate-800 h-screen sticky top-0 z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-72'}`}>
            <div className={`p-6 pb-4 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
@@ -54,23 +64,23 @@ export const Layout: React.FC<LayoutProps> = ({
 
            {!isSidebarCollapsed && (
                <div className="px-8 mb-4 animate-in fade-in duration-300">
-                    <p className="text-xs text-slate-500 font-medium">Versión Escritorio v1.2</p>
+                    <p className="text-xs text-slate-500 font-medium">Versión Escritorio v1.3</p>
                </div>
            )}
 
            <nav className="flex-1 px-4 space-y-2 mt-2">
               <DesktopNavItem 
                 icon={<Home size={20}/>} 
-                label="Inicio" 
+                label="Resumen Financiero" 
                 active={activeNav === 'home'} 
                 onClick={() => onNavigate?.('home')} 
                 collapsed={isSidebarCollapsed}
               />
               <DesktopNavItem 
-                icon={<BarChart2 size={20}/>} 
-                label="Reportes" 
-                active={activeNav === 'analytics'} 
-                onClick={() => onNavigate?.('analytics')} 
+                icon={<ShoppingBag size={20}/>} 
+                label="Ventas" 
+                active={activeNav === 'sales'} 
+                onClick={() => onNavigate?.('sales')} 
                 collapsed={isSidebarCollapsed}
               />
               <DesktopNavItem 
@@ -81,6 +91,13 @@ export const Layout: React.FC<LayoutProps> = ({
                 collapsed={isSidebarCollapsed}
               />
               <DesktopNavItem 
+                icon={<CreditCard size={20}/>} 
+                label="Cuenta Corriente" 
+                active={activeNav === 'accounts'} 
+                onClick={() => onNavigate?.('accounts')} 
+                collapsed={isSidebarCollapsed}
+              />
+              <DesktopNavItem 
                 icon={<Settings size={20}/>} 
                 label="Configuración" 
                 active={activeNav === 'settings'} 
@@ -88,22 +105,6 @@ export const Layout: React.FC<LayoutProps> = ({
                 collapsed={isSidebarCollapsed}
               />
            </nav>
-
-           <div className="p-4 border-t border-slate-800">
-               <button 
-                  className={`flex items-center gap-3 text-slate-400 hover:text-white transition-colors w-full p-2 rounded-lg hover:bg-slate-800 ${isSidebarCollapsed ? 'justify-center' : ''}`}
-                  title="Cerrar Sesión"
-               >
-                  <LogOut size={20} />
-                  {!isSidebarCollapsed && <span className="text-sm font-bold whitespace-nowrap">Cerrar Sesión</span>}
-               </button>
-               
-               {isSidebarCollapsed && (
-                    <button onClick={() => setIsSidebarCollapsed(false)} className="mt-4 w-full flex justify-center p-2 text-slate-500 hover:text-white">
-                        <Menu size={20} />
-                    </button>
-               )}
-           </div>
         </aside>
       )}
 
@@ -127,7 +128,6 @@ export const Layout: React.FC<LayoutProps> = ({
             <div className="h-14 flex md:hidden items-center justify-between px-6 pt-2">
               <span className="text-white text-sm font-semibold">9:41</span>
               <div className="flex items-center gap-4">
-                 {/* Mobile Rate Widget */}
                  {currentExchangeRate && (
                      <button 
                         onClick={onOpenExchange}
@@ -147,18 +147,19 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
             </div>
 
-            {/* DESKTOP HEADER - Hidden in Setup Mode */}
+            {/* DESKTOP HEADER */}
             {!isSetupMode && (
                 <div className="hidden md:flex h-20 items-center justify-between px-8 bg-slate-900">
                      <div className="flex items-center gap-4">
-                        {isSidebarCollapsed && (
-                            <button onClick={() => setIsSidebarCollapsed(false)} className="text-slate-400 hover:text-white transition-colors">
-                                <Menu size={24} />
-                            </button>
-                        )}
                         <div>
-                            <h2 className="text-xl font-bold text-white">Panel de Control</h2>
-                            <p className="text-xs text-slate-400">Bienvenido de nuevo</p>
+                            <h2 className="text-xl font-bold text-white">
+                                {activeNav === 'home' && 'Resumen Financiero'}
+                                {activeNav === 'sales' && 'Ventas'}
+                                {activeNav === 'products' && 'Productos'}
+                                {activeNav === 'accounts' && 'Cuenta Corriente'}
+                                {activeNav === 'settings' && 'Configuración'}
+                            </h2>
+                            <p className="text-xs text-slate-400">Panel de Control</p>
                         </div>
                      </div>
                      <div className="flex items-center gap-6">
@@ -176,8 +177,17 @@ export const Layout: React.FC<LayoutProps> = ({
                                 </div>
                              </div>
                          )}
-                         <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold shadow-lg shadow-orange-500/20">
-                             GP
+                         
+                         {/* CLICKABLE INITIALS */}
+                         <div 
+                            onClick={() => setShowFullNamePC(!showFullNamePC)}
+                            className={`h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold shadow-lg shadow-orange-500/20 cursor-pointer transition-all duration-300 overflow-hidden ${showFullNamePC ? 'px-4 w-auto' : 'w-10'}`}
+                         >
+                             {showFullNamePC ? (
+                                <span className="text-sm whitespace-nowrap animate-in fade-in slide-in-from-right-2">{businessName}</span>
+                             ) : (
+                                getInitials(businessName)
+                             )}
                          </div>
                      </div>
                 </div>
@@ -186,37 +196,42 @@ export const Layout: React.FC<LayoutProps> = ({
 
           {/* MAIN CONTENT SCROLL AREA */}
           <div className={`flex-1 overflow-y-auto no-scrollbar relative bg-slate-900 text-white ${!isSetupMode ? 'md:p-8' : ''}`}>
-             {/* Content Constraint for Desktop Readability */}
              <div className={`w-full h-full ${!isSetupMode ? 'md:max-w-7xl md:mx-auto' : ''}`}>
                 {children}
              </div>
           </div>
 
-          {/* MOBILE BOTTOM NAVIGATION - Hidden on Desktop */}
+          {/* MOBILE BOTTOM NAVIGATION */}
           {showNav && (
-            <div className="md:hidden h-20 bg-slate-900/90 backdrop-blur-lg border-t border-slate-800 flex justify-between items-center px-8 pb-2 absolute bottom-0 w-full z-40">
+            <div className="md:hidden h-20 bg-slate-900/90 backdrop-blur-lg border-t border-slate-800 flex justify-between items-center px-6 pb-2 absolute bottom-0 w-full z-40">
               <MobileNavIcon 
                   active={activeNav === 'home'} 
                   onClick={() => onNavigate?.('home')}
-                  icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></svg>}
-                  label="Inicio"
+                  icon={<Home size={20} />}
+                  label="Resumen"
               />
               <MobileNavIcon 
-                  active={activeNav === 'analytics'} 
-                  onClick={() => onNavigate?.('analytics')}
-                  icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83" /><path d="M22 12A10 10 0 0 0 12 2v10z" /></svg>}
-                  label="Reportes"
+                  active={activeNav === 'sales'} 
+                  onClick={() => onNavigate?.('sales')}
+                  icon={<ShoppingBag size={20} />}
+                  label="Ventas"
               />
               <MobileNavIcon 
                   active={activeNav === 'products'} 
                   onClick={() => onNavigate?.('products')}
-                  icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>}
+                  icon={<Package size={20} />}
                   label="Productos"
+              />
+              <MobileNavIcon 
+                  active={activeNav === 'accounts'} 
+                  onClick={() => onNavigate?.('accounts')}
+                  icon={<CreditCard size={20} />}
+                  label="Cuentas"
               />
               <MobileNavIcon 
                   active={activeNav === 'settings'} 
                   onClick={() => onNavigate?.('settings')}
-                  icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>}
+                  icon={<Settings size={20} />}
                   label="Ajustes"
               />
             </div>

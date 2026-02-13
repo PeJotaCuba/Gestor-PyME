@@ -1,33 +1,108 @@
-import React, { useRef, useState } from 'react';
-import { Wallet, Package, PlusSquare, Receipt, Zap, Truck, TrendingUp, ChevronLeft, ChevronRight, Settings, Grid } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { ViewState } from '../types';
+import React, { useRef, useState, useEffect } from 'react';
+import { Wallet, Package, PlusSquare, Receipt, TrendingUp, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip } from 'recharts';
+import { ViewState, Product, StockMovement, ContractSale, DailySale } from '../types';
 
 interface DashboardViewProps {
   onChangeView: (view: ViewState) => void;
   businessName: string;
 }
 
-// Mock Data
-const pieData = [
-  { name: 'Costos Fijos', value: 27852 },
-  { name: 'Variables', value: 14998 },
-];
-const COLORS = ['#f97316', '#ec4899'];
-
-const barData = [
-  { name: 'Ene', amt: 2400 },
-  { name: 'Feb', amt: 1398 },
-  { name: 'Mar', amt: 9800 },
-  { name: 'Abr', amt: 3908 },
-  { name: 'May', amt: 4800 },
-  { name: 'Jun', amt: 3800 },
-  { name: 'Jul', amt: 4300 },
-];
+const COLORS = ['#f97316', '#ec4899', '#8b5cf6', '#10b981'];
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, businessName }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showFullName, setShowFullName] = useState(false);
+  
+  // Real Calculated State
+  const [inventoryValue, setInventoryValue] = useState(0);
+  const [totalExpenses, setTotalExpenses] = useState(0);
+  const [pendingReceivables, setPendingReceivables] = useState(0);
+  
+  // Chart Data
+  const [pieData, setPieData] = useState<{name: string, value: number}[]>([]);
+  const [barData, setBarData] = useState<{name: string, amt: number}[]>([]);
+
+  // Calculate All Data
+  useEffect(() => {
+    const storageKeyProd = `Gestor_${businessName.replace(/\s+/g, '_')}_products`;
+    const storageKeyMov = `Gestor_${businessName.replace(/\s+/g, '_')}_movements`;
+    const storageKeyExp = `Gestor_${businessName.replace(/\s+/g, '_')}_expenses`;
+    const storageKeyContract = `Gestor_${businessName.replace(/\s+/g, '_')}_sales_contract`;
+    const storageKeyDaily = `Gestor_${businessName.replace(/\s+/g, '_')}_sales_daily`;
+    
+    // Load Data
+    const products: Product[] = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
+    const movements: StockMovement[] = JSON.parse(localStorage.getItem(storageKeyMov) || '[]');
+    const expenses: Record<string, any> = JSON.parse(localStorage.getItem(storageKeyExp) || '{}');
+    const contracts: ContractSale[] = JSON.parse(localStorage.getItem(storageKeyContract) || '[]');
+    const dailies: DailySale[] = JSON.parse(localStorage.getItem(storageKeyDaily) || '[]');
+
+    // 1. Calculate Inventory Value
+    let totalVal = 0;
+    products.forEach(p => {
+        const inQty = movements.filter(m => m.productId === p.id && m.type === 'IN').reduce((sum, m) => sum + m.quantity, 0);
+        const outQty = movements.filter(m => m.productId === p.id && m.type === 'OUT').reduce((sum, m) => sum + m.quantity, 0);
+        const stock = inQty - outQty;
+        const cost = (p.price || 0) + (p.transport || 0);
+        if (stock > 0) totalVal += (stock * cost);
+    });
+    setInventoryValue(totalVal);
+
+    // 2. Calculate Expenses
+    let calcExpenses = 0;
+    const pieBreakdown: {name: string, value: number}[] = [];
+    Object.entries(expenses).forEach(([key, val]: [string, any]) => {
+        // Skip taxes as they are percentage based on sales, not direct fixed expenses usually shown in total sum
+        if(key !== 'taxes' && val.amount) {
+            const amount = parseFloat(val.amount);
+            if(!isNaN(amount)) {
+                calcExpenses += amount;
+                
+                // Map keys to labels for Pie Chart
+                let label = key;
+                if(key === 'rent') label = 'Renta';
+                if(key === 'salaries') label = 'Salarios';
+                if(key === 'transport') label = 'Transporte';
+                if(key === 'marketing') label = 'Marketing';
+                if(key === 'power') label = 'Luz';
+                
+                pieBreakdown.push({ name: label, value: amount });
+            }
+        }
+    });
+    setTotalExpenses(calcExpenses);
+    setPieData(pieBreakdown.length > 0 ? pieBreakdown : [{name: 'Sin datos', value: 1}]);
+
+    // 3. Calculate Pending Receivables
+    const pending = contracts
+        .filter(c => c.status === 'PENDING')
+        .reduce((sum, c) => sum + c.total, 0);
+    setPendingReceivables(pending);
+
+    // 4. Calculate Bar Data (Sales by Month)
+    const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    const salesByMonth = new Array(12).fill(0);
+    
+    // Process Daily Sales
+    dailies.forEach(s => {
+        const d = new Date(s.date);
+        salesByMonth[d.getMonth()] += s.total;
+    });
+    // Process Paid Contract Sales (Counts as realized income)
+    contracts.filter(c => c.status === 'PAID').forEach(s => {
+        const d = new Date(s.date);
+        salesByMonth[d.getMonth()] += s.total;
+    });
+
+    const chartData = salesByMonth.map((amt, index) => ({
+        name: monthNames[index],
+        amt: amt
+    })).filter(d => d.amt > 0); // Only show months with data, or show all if preferred
+
+    setBarData(chartData.length > 0 ? chartData : [{name: 'Sin datos', amt: 0}]);
+
+  }, [businessName]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -48,10 +123,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
 
   return (
     <div className="px-5 pt-2 pb-32 md:pb-8 md:px-0 space-y-6">
-      {/* Mobile-Only Header (Sidebar covers this on Desktop) */}
+      {/* Mobile-Only Header */}
       <header className="flex md:hidden justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Tablero</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Resumen Financiero</h1>
           <p className="text-xs text-slate-400 font-medium">Analítica PyME • CUP</p>
         </div>
         
@@ -82,21 +157,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
         </div>
       </header>
 
-      {/* Summary Cards: Scroll on Mobile, Grid on Desktop */}
+      {/* Summary Cards */}
       <section className="relative">
         <div className="flex items-center justify-between mb-2 px-1">
-            <span className="text-xs font-bold text-slate-500">RESUMEN FINANCIERO (CUP)</span>
+            <span className="text-xs font-bold text-slate-500">RESUMEN GENERAL (CUP)</span>
             <div className="flex gap-2 md:hidden">
-                <button 
-                    onClick={() => scroll('left')} 
-                    className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 active:scale-95 transition-all"
-                >
+                <button onClick={() => scroll('left')} className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700">
                     <ChevronLeft size={16} />
                 </button>
-                <button 
-                    onClick={() => scroll('right')} 
-                    className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 active:scale-95 transition-all"
-                >
+                <button onClick={() => scroll('right')} className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700">
                     <ChevronRight size={16} />
                 </button>
             </div>
@@ -111,12 +180,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
               <div className="p-2 bg-orange-500/10 rounded-lg text-orange-500">
                 <Wallet size={20} />
               </div>
-              <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">+12.4%</span>
             </div>
             <p className="text-sm text-slate-400 font-medium">Gastos Generales</p>
-            <h2 className="text-2xl font-extrabold mt-1 text-white">$42,850.00</h2>
+            <h2 className="text-2xl font-extrabold mt-1 text-white">${totalExpenses.toLocaleString('en-US', {minimumFractionDigits: 2})}</h2>
             <div className="mt-4 h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
-              <div className="h-full bg-orange-500 w-3/4"></div>
+              <div className="h-full bg-orange-500 w-full opacity-50"></div>
             </div>
           </div>
 
@@ -125,10 +193,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
               <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
                 <Package size={20} />
               </div>
-              <span className="text-xs font-bold text-rose-500 bg-rose-500/10 px-2 py-1 rounded-full">-2.1%</span>
             </div>
             <p className="text-sm text-slate-400 font-medium">Valor de Inventario</p>
-            <h2 className="text-2xl font-extrabold mt-1 text-white">$128,400.00</h2>
+            <h2 className="text-2xl font-extrabold mt-1 text-white">${inventoryValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2>
             <div className="mt-4 h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
               <div className="h-full bg-amber-500 w-1/2"></div>
             </div>
@@ -139,10 +206,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
               <div className="p-2 bg-purple-500/10 rounded-lg text-purple-500">
                 <Receipt size={20} />
               </div>
-              <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">+5.0%</span>
             </div>
             <p className="text-sm text-slate-400 font-medium">Cuentas por Cobrar</p>
-            <h2 className="text-2xl font-extrabold mt-1 text-white">$15,230.00</h2>
+            <h2 className="text-2xl font-extrabold mt-1 text-white">${pendingReceivables.toLocaleString('en-US', {minimumFractionDigits: 2})}</h2>
             <div className="mt-4 h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
               <div className="h-full bg-purple-500 w-1/4"></div>
             </div>
@@ -150,14 +216,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
         </div>
       </section>
 
-      {/* Main Grid: Charts and Actions */}
+      {/* Main Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          {/* Column 1: Pie Chart (Spans 1 col) */}
           <section className="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 shadow-sm md:col-span-1">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-bold text-lg text-white">Desglose de Costos</h3>
-              <button className="text-orange-500 text-sm font-semibold">Detalles</button>
+              <h3 className="font-bold text-lg text-white">Desglose de Gastos</h3>
             </div>
             
             <div className="h-48 relative">
@@ -180,32 +244,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-xs text-slate-400 uppercase font-bold tracking-widest">Proporción</span>
-                <span className="text-2xl font-extrabold text-white">65%</span>
+                <span className="text-xs text-slate-400 uppercase font-bold tracking-widest">Total</span>
+                <span className="text-xl font-extrabold text-white">${totalExpenses.toLocaleString()}</span>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div className="flex items-start space-x-3">
-                <div className="w-3 h-3 rounded-full bg-orange-500 mt-1"></div>
-                <div>
-                  <p className="text-xs text-slate-400 font-bold uppercase">Costos Fijos</p>
-                  <p className="font-bold text-base text-white">$27,852</p>
+            {pieData.length > 0 && pieData[0].name !== 'Sin datos' && (
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                    {pieData.map((entry, index) => (
+                        <div key={index} className="flex items-center gap-2 text-xs text-slate-400">
+                            <div className="w-2 h-2 rounded-full" style={{backgroundColor: COLORS[index % COLORS.length]}}></div>
+                            <span>{entry.name}</span>
+                        </div>
+                    ))}
                 </div>
-              </div>
-              <div className="flex items-start space-x-3">
-                <div className="w-3 h-3 rounded-full bg-pink-500 mt-1"></div>
-                <div>
-                  <p className="text-xs text-slate-400 font-bold uppercase">Variables</p>
-                  <p className="font-bold text-base text-white">$14,998</p>
-                </div>
-              </div>
-            </div>
+            )}
           </section>
 
-          {/* Column 2 & 3: Actions & Bar Chart (Spans 2 cols on Desktop) */}
           <div className="md:col-span-2 space-y-6 flex flex-col h-full">
-               {/* Quick Actions */}
               <section className="grid grid-cols-2 gap-4">
                 <button 
                     onClick={() => onChangeView(ViewState.ADD_PRODUCT)}
@@ -223,62 +278,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
                 </button>
               </section>
 
-               {/* Bar Chart Trend */}
               <section className="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 shadow-sm flex-1 flex flex-col">
                 <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
                     <TrendingUp size={18} className="text-orange-500" />
-                    <h3 className="font-bold text-lg text-white">Tendencia de Gastos</h3>
+                    <h3 className="font-bold text-lg text-white">Ventas Mensuales</h3>
                 </div>
-                <span className="text-xs text-slate-500 font-bold">ÚLTIMOS 30 DÍAS</span>
                 </div>
                 <div className="h-32 w-full flex-1 min-h-[150px]">
                     <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={barData}>
-                    <Bar dataKey="amt" fill="#f97316" radius={[4, 4, 0, 0]} />
+                        <XAxis dataKey="name" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                        <Tooltip 
+                            contentStyle={{backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '8px', color: 'white'}}
+                            itemStyle={{color: '#f97316'}}
+                            cursor={{fill: '#334155', opacity: 0.2}}
+                        />
+                        <Bar dataKey="amt" fill="#f97316" radius={[4, 4, 0, 0]} />
                     </BarChart>
                 </ResponsiveContainer>
                 </div>
               </section>
           </div>
       </div>
-
-      {/* Recent Lists (Full Width) */}
-      <section>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-lg text-white">Prorrateos Recientes</h3>
-          <button className="text-orange-500 text-sm font-semibold">Ver Todo</button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors">
-            <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 mr-4">
-              <Zap size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="font-bold text-sm text-white">Servicios Mensuales</p>
-              <p className="text-xs text-slate-500">Costo Fijo • Asignado</p>
-            </div>
-            <div className="text-right">
-              <p className="font-bold text-sm text-white">-$1,240</p>
-              <p className="text-[10px] text-emerald-500 font-bold">ASIGNADO</p>
-            </div>
-          </div>
-          
-           <div className="flex items-center p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors">
-            <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 mr-4">
-              <Truck size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="font-bold text-sm text-white">Logística y Fletes</p>
-              <p className="text-xs text-slate-500">Variable • Pendiente</p>
-            </div>
-            <div className="text-right">
-              <p className="font-bold text-sm text-white">-$890</p>
-              <p className="text-[10px] text-amber-500 font-bold">EN ESPERA</p>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 };

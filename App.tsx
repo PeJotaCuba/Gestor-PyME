@@ -3,6 +3,9 @@ import { ViewState } from './types';
 import { Layout } from './components/Layout';
 import { SetupView } from './views/SetupView';
 import { DashboardView } from './views/DashboardView';
+import { SalesView } from './views/SalesView';
+import { ProductsListView } from './views/ProductsListView';
+import { CurrentAccountView } from './views/CurrentAccountView';
 import { AddProductView } from './views/AddProductView';
 import { ImportView } from './views/ImportView';
 import { AddExpenseView } from './views/AddExpenseView';
@@ -15,18 +18,16 @@ const App = () => {
   
   // Exchange Rate Global State
   const [showExchangeModal, setShowExchangeModal] = useState(false);
-  const [exchangeRate, setExchangeRate] = useState(''); // The active rate used for calcs
-  const [bccRate, setBccRate] = useState(''); // The fetched BCC rate
-  const [isManualRate, setIsManualRate] = useState(false); // Preference flag
+  const [exchangeRate, setExchangeRate] = useState(''); 
+  const [bccRate, setBccRate] = useState('');
+  const [isManualRate, setIsManualRate] = useState(false);
   const [isLoadingRate, setIsLoadingRate] = useState(false);
 
-  // Function to fetch BCC Rate
   const fetchBCCRate = async () => {
     setIsLoadingRate(true);
     try {
         const targetUrl = 'https://www.bc.gob.cu/tasas-de-cambio';
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-        
         const response = await fetch(proxyUrl);
         const data = await response.json();
         
@@ -54,7 +55,6 @@ const App = () => {
             if (foundRate > 0) {
                 const strRate = foundRate.toString();
                 setBccRate(strRate);
-                // Only auto-update active rate if NOT in manual mode
                 if (!isManualRate) {
                     setExchangeRate(strRate);
                 }
@@ -67,7 +67,6 @@ const App = () => {
     }
   };
 
-  // Initial Load Check
   useEffect(() => {
     let foundConfig = false;
     let configName = '';
@@ -93,17 +92,14 @@ const App = () => {
             const rateKey = `Gestor_${safeName}_exchangeRate`;
             const rateData = JSON.parse(localStorage.getItem(rateKey) || '{}');
             
-            // Restore state
             if (rateData.rate) setExchangeRate(rateData.rate);
             if (rateData.isManual) setIsManualRate(true);
 
-            // Fetch fresh rate in background to display in modal
             fetchBCCRate();
 
-            // Logic: If manual, we trust the stored rate. If not manual, we check date.
             const today = new Date().toISOString().split('T')[0];
             if (!rateData.isManual && rateData.date !== today) {
-                setShowExchangeModal(true); // Prompt update
+                setShowExchangeModal(true); 
             }
         }
     } else {
@@ -113,8 +109,6 @@ const App = () => {
 
   const handleSetupComplete = (name: string, linkExchangeRate: boolean, initialRate?: string, isManual?: boolean) => {
     setBusinessName(name);
-    
-    // Save Config
     const safeName = name.replace(/\s+/g, '_');
     localStorage.setItem(`Gestor_${safeName}_config`, JSON.stringify({
         lastAccess: new Date().toISOString(),
@@ -127,7 +121,6 @@ const App = () => {
         if (isManual) setIsManualRate(true);
         saveRateToStorage(name, initialRate, !!isManual);
     }
-
     setCurrentView(ViewState.DASHBOARD);
   };
 
@@ -150,7 +143,22 @@ const App = () => {
   const handleManualToggle = (checked: boolean) => {
       setIsManualRate(checked);
       if (!checked && bccRate) {
-          setExchangeRate(bccRate); // Reset to BCC if turning manual off
+          setExchangeRate(bccRate); 
+      }
+  };
+
+  const handleNavigation = (nav: string) => {
+      setActiveNav(nav);
+      if (nav === 'settings') {
+          setCurrentView(ViewState.SETUP);
+      } else if (nav === 'home') {
+          setCurrentView(ViewState.DASHBOARD);
+      } else if (nav === 'sales') {
+          setCurrentView(ViewState.SALES);
+      } else if (nav === 'products') {
+          setCurrentView(ViewState.PRODUCTS);
+      } else if (nav === 'accounts') {
+          setCurrentView(ViewState.CURRENT_ACCOUNT);
       }
   };
 
@@ -160,10 +168,16 @@ const App = () => {
         return <SetupView onComplete={handleSetupComplete} />;
       case ViewState.DASHBOARD:
         return <DashboardView onChangeView={setCurrentView} businessName={businessName} />;
+      case ViewState.SALES:
+        return <SalesView businessName={businessName} />;
+      case ViewState.PRODUCTS:
+        return <ProductsListView businessName={businessName} />;
+      case ViewState.CURRENT_ACCOUNT:
+        return <CurrentAccountView businessName={businessName} />;
       case ViewState.ADD_PRODUCT:
         return (
             <AddProductView 
-                onBack={() => setCurrentView(ViewState.DASHBOARD)} 
+                onBack={() => setCurrentView(ViewState.PRODUCTS)} 
                 onImportClick={() => setCurrentView(ViewState.IMPORT_PRODUCT)}
                 businessName={businessName}
             />
@@ -177,22 +191,22 @@ const App = () => {
     }
   };
 
-  const showNav = currentView === ViewState.DASHBOARD;
+  const showNav = currentView === ViewState.DASHBOARD || currentView === ViewState.SALES || currentView === ViewState.PRODUCTS || currentView === ViewState.CURRENT_ACCOUNT;
   const isSetup = currentView === ViewState.SETUP;
 
   return (
     <Layout 
         showNav={showNav} 
         activeNav={activeNav}
-        onNavigate={(nav) => setActiveNav(nav)}
+        onNavigate={handleNavigation}
         onAddClick={() => setCurrentView(ViewState.ADD_PRODUCT)}
         currentExchangeRate={exchangeRate} 
         onOpenExchange={() => setShowExchangeModal(true)}
         isSetupMode={isSetup}
+        businessName={businessName}
     >
       {renderView()}
 
-      {/* Global Exchange Rate Overlay Modal */}
       {showExchangeModal && (
           <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
               <div className="bg-slate-900 border border-orange-500/30 p-6 rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-300">
@@ -211,7 +225,6 @@ const App = () => {
                     </button>
                   </div>
                   
-                  {/* BCC Detected Rate Section */}
                   <div className="mb-6 bg-slate-900/50 p-4 rounded-xl border border-slate-700 relative overflow-hidden">
                       <div className="flex justify-between items-center mb-1">
                           <span className="text-xs font-bold text-slate-400 uppercase">Tasa BCC (Seg. III)</span>
@@ -232,7 +245,6 @@ const App = () => {
                       )}
                   </div>
 
-                  {/* Manual Toggle */}
                   <div className="flex items-center justify-between mb-4 px-1">
                       <span className="text-sm font-bold text-white">Editar Tasa Manualmente</span>
                       <div 
@@ -243,7 +255,6 @@ const App = () => {
                         </div>
                   </div>
                   
-                  {/* Input */}
                   <div className="mb-6 relative">
                       <div className="flex items-center gap-2">
                           <input 
@@ -261,11 +272,6 @@ const App = () => {
                           />
                           <span className="text-xl font-bold text-slate-400">CUP</span>
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-2">
-                         {isManualRate 
-                            ? 'Advertencia: Los cambios en la tasa afectarán los cálculos de costos de productos.' 
-                            : 'Usando automáticamente la tasa detectada del BCC.'}
-                      </p>
                   </div>
 
                   <button 

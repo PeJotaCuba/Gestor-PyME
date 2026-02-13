@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Store, Package, Layers, ArrowRight, DollarSign, X, RefreshCw, Globe, CheckCircle } from 'lucide-react';
 
 interface SetupViewProps {
@@ -18,6 +18,31 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
   const [bccRate, setBccRate] = useState(''); // The detected BCC rate
   const [isManual, setIsManual] = useState(false); // Toggle state
   const [isLoadingRate, setIsLoadingRate] = useState(false);
+
+  // Check for existing business name on mount
+  useEffect(() => {
+    // Search for any existing config key
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('Gestor_') && key.endsWith('_config')) {
+            // Extract name from key: Gestor_Nombre_Negocio_config
+            const rawName = key.replace('Gestor_', '').replace('_config', '').replace(/_/g, ' ');
+            if (rawName) {
+                setName(rawName);
+                // Also try to load previous exchange settings if available
+                const rateKey = `Gestor_${rawName.replace(/\s+/g, '_')}_exchangeRate`;
+                const rateData = localStorage.getItem(rateKey);
+                if (rateData) {
+                    const parsed = JSON.parse(rateData);
+                    setLinkExchangeRate(true);
+                    setExchangeRate(parsed.rate);
+                    setIsManual(parsed.isManual);
+                }
+            }
+            break;
+        }
+    }
+  }, []);
 
   const fetchBCCRate = async () => {
     setIsLoadingRate(true);
@@ -52,7 +77,6 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
             }
 
             if (foundRate > 0) {
-                console.log("Tasa Segmento III detectada:", foundRate);
                 setBccRate(foundRate.toString());
                 if (!isManual) {
                     setExchangeRate(foundRate.toString());

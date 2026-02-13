@@ -19,7 +19,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
     
     // Calculated Costs
     const [proratedCost, setProratedCost] = useState<number>(0);
-    const [taxes, setTaxes] = useState({ sales: 0, income: 0 }); // Amounts
+    const [totalTaxAmount, setTotalTaxAmount] = useState<number>(0);
 
     // Calculate Everything
     useEffect(() => {
@@ -29,19 +29,28 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         const storageKeyExp = `Gestor_${businessName.replace(/\s+/g, '_')}_expenses`;
         const expenses: Record<string, any> = JSON.parse(localStorage.getItem(storageKeyExp) || '{}');
         let totalFixedExpenses = 0;
-        let taxRates = { sales: 0.10, income: 0.10 };
+        let totalTaxPercent = 0;
+
+        // Calculate Taxes from dynamic list
+        if (expenses.taxes && expenses.taxes.taxList) {
+             expenses.taxes.taxList.forEach((t: any) => {
+                 totalTaxPercent += (parseFloat(t.percent) || 0);
+             });
+        } else {
+            // Fallback for legacy data
+            if (expenses.taxes?.salesTax) totalTaxPercent += parseFloat(expenses.taxes.salesTax);
+            if (expenses.taxes?.incomeTax) totalTaxPercent += parseFloat(expenses.taxes.incomeTax);
+            if (totalTaxPercent === 0) totalTaxPercent = 20; // Default fallback
+        }
 
         Object.entries(expenses).forEach(([key, val]: [string, any]) => {
-            if (key === 'taxes') {
-                if (val.salesTax) taxRates.sales = parseFloat(val.salesTax) / 100;
-                if (val.incomeTax) taxRates.income = parseFloat(val.incomeTax) / 100;
-            } else if (val.amount && val.isFixed) {
+            if (key !== 'taxes' && val.amount && val.isFixed) {
                 const amount = parseFloat(val.amount);
                 if (!isNaN(amount)) totalFixedExpenses += amount;
             }
         });
 
-        // Get Total Inventory Value to determine weight
+        // Get Total Inventory Value
         const storageKeyProd = `Gestor_${businessName.replace(/\s+/g, '_')}_products`;
         const storageKeyMov = `Gestor_${businessName.replace(/\s+/g, '_')}_movements`;
         const products: Product[] = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
@@ -57,18 +66,10 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
              }
         });
 
-        // Add current item to potential inventory value to prevent division by zero or skewing
-        // Formula: (Unit Purchase Price / Total Inventory Value) * Total Fixed Monthly Expenses
-        // Note: Total Inventory Value includes existing inventory.
-        // If inventory is empty, current item carries 100% of weight? No, that's unrealistic for the first item.
-        // We use a safe fallback if inventory is 0.
-        
         let allocationFactor = 0;
         if (totalInventoryValue > 0) {
             allocationFactor = purchasePrice / totalInventoryValue; 
         } else {
-            // First item fallback: negligible allocation or manual policy. 
-            // Using purchasePrice as a tiny fraction of a hypothetical target inventory (e.g. 100k) to avoid huge costs
             allocationFactor = purchasePrice / 100000; 
         }
 
@@ -79,18 +80,15 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         const baseCost = purchasePrice + calculatedProration;
 
         // 3. Provisional Price with Margin
-        // Price = Cost / (1 - margin%)
         const provisionalPrice = baseCost / (1 - (margin / 100));
 
         // 4. Calculate Taxes based on Provisional Price
-        const salesTaxAmount = provisionalPrice * taxRates.sales;
-        const incomeTaxAmount = provisionalPrice * taxRates.income;
-        
-        setTaxes({ sales: salesTaxAmount, income: incomeTaxAmount });
+        const calculatedTax = provisionalPrice * (totalTaxPercent / 100);
+        setTotalTaxAmount(calculatedTax);
 
         // 5. Set Final Suggested Price
         if (!isManualPrice) {
-            setManualSalePrice(provisionalPrice + salesTaxAmount + incomeTaxAmount);
+            setManualSalePrice(provisionalPrice + calculatedTax);
         }
 
     }, [purchasePrice, margin, businessName, isManualPrice]);
@@ -111,7 +109,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
             name,
             category,
             price: purchasePrice,
-            transport: proratedCost, // Storing allocated overhead
+            transport: proratedCost,
             sale: manualSalePrice,
             date: new Date().toISOString()
         };
@@ -237,11 +235,11 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                                 <div className="flex items-center gap-3">
                                     <Percent size={18} className="text-blue-500" />
                                     <div>
-                                        <label className="block text-sm font-medium text-white">Impuestos Est.</label>
-                                        <p className="text-[10px] text-slate-500">Ventas + Ingresos (20% aprox)</p>
+                                        <label className="block text-sm font-medium text-white">Impuestos</label>
+                                        <p className="text-[10px] text-slate-500">Total Impuestos Configurados</p>
                                     </div>
                                 </div>
-                                <span className="font-bold text-blue-500 text-sm">+${(taxes.sales + taxes.income).toFixed(2)}</span>
+                                <span className="font-bold text-blue-500 text-sm">+${totalTaxAmount.toFixed(2)}</span>
                             </div>
                         </div>
                     </section>
@@ -272,7 +270,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                 <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex justify-between items-center">
                      <div>
                         <p className="text-xs font-medium text-slate-400 uppercase tracking-tight">Costo Total (c/Impuestos)</p>
-                        <p className="text-lg font-bold text-white">${(purchasePrice + proratedCost + taxes.sales + taxes.income).toFixed(2)}</p>
+                        <p className="text-lg font-bold text-white">${(purchasePrice + proratedCost + totalTaxAmount).toFixed(2)}</p>
                     </div>
                 </div>
 

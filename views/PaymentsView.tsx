@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Banknote, History, ArrowUpRight, Plus, ExternalLink } from 'lucide-react';
+import { Banknote, History, ArrowUpRight, Plus, ExternalLink, Trash2, Edit2, X, Save } from 'lucide-react';
 import { BankAccount, PaymentRecord } from '../types';
 
 interface PaymentsViewProps {
@@ -17,6 +17,11 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ businessName }) => {
     const [sourceAccount, setSourceAccount] = useState<number | 'CASH'>('CASH');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
+    // Editing State
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editAmount, setEditAmount] = useState('');
+    const [editDesc, setEditDesc] = useState('');
+
     const storageKeyPayments = `Gestor_${businessName.replace(/\s+/g, '_')}_payments`;
     const storageKeyAccounts = `Gestor_${businessName.replace(/\s+/g, '_')}_accounts`;
 
@@ -26,32 +31,33 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ businessName }) => {
         setAccounts(accData.banks);
     }, [businessName]);
 
+    const getAccountData = () => JSON.parse(localStorage.getItem(storageKeyAccounts) || '{"cash": 0, "banks": []}');
+    const saveAccountData = (data: any) => {
+        localStorage.setItem(storageKeyAccounts, JSON.stringify(data));
+        setAccounts(data.banks);
+    };
+
     const handleRegisterPayment = () => {
         if (!amount || !description) return;
         
         const val = parseFloat(amount);
         if (isNaN(val) || val <= 0) return;
 
-        // Load current account data to check balance
-        const accData = JSON.parse(localStorage.getItem(storageKeyAccounts) || '{"cash": 0, "banks": []}');
+        const accData = getAccountData();
         let availableBalance = 0;
 
         if (sourceAccount === 'CASH') {
             availableBalance = accData.cash;
         } else {
             const bank = accData.banks.find((b: BankAccount) => b.id === sourceAccount);
-            if (bank) {
-                availableBalance = bank.amount;
-            }
+            if (bank) availableBalance = bank.amount;
         }
 
-        // VALIDATION: Check for sufficient funds
         if (val > availableBalance) {
             alert("Saldo insuficiente en cuenta");
             return;
         }
 
-        // 1. Save Record
         const newRecord: PaymentRecord = {
             id: Date.now(),
             amount: val,
@@ -63,23 +69,103 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ businessName }) => {
         setHistory(updatedHistory);
         localStorage.setItem(storageKeyPayments, JSON.stringify(updatedHistory));
 
-        // 2. Deduct Money
         if (sourceAccount === 'CASH') {
             accData.cash -= val;
         } else {
             const bank = accData.banks.find((b: BankAccount) => b.id === sourceAccount);
             if (bank) bank.amount -= val;
         }
-        localStorage.setItem(storageKeyAccounts, JSON.stringify(accData));
+        saveAccountData(accData);
 
-        // Reset
         setAmount('');
         setDescription('');
         setSourceAccount('CASH');
         alert("Pago registrado correctamente.");
+    };
+
+    const handleDeletePayment = (payment: PaymentRecord) => {
+        if (!confirm('¿Eliminar este pago? El dinero será devuelto a la cuenta de origen.')) return;
+
+        // Revert Balance
+        const accData = getAccountData();
+        if (payment.sourceAccountId === 'CASH') {
+            accData.cash += payment.amount;
+        } else {
+            const bank = accData.banks.find((b: BankAccount) => b.id === payment.sourceAccountId);
+            if (bank) bank.amount += payment.amount;
+        }
+        saveAccountData(accData);
+
+        // Remove Record
+        const updatedHistory = history.filter(h => h.id !== payment.id);
+        setHistory(updatedHistory);
+        localStorage.setItem(storageKeyPayments, JSON.stringify(updatedHistory));
+    };
+
+    const startEditing = (payment: PaymentRecord) => {
+        setEditingId(payment.id);
+        setEditAmount(payment.amount.toString());
+        setEditDesc(payment.description);
+    };
+
+    const cancelEditing = () => {
+        setEditingId(null);
+        setEditAmount('');
+        setEditDesc('');
+    };
+
+    const saveEdit = (originalPayment: PaymentRecord) => {
+        const newAmtVal = parseFloat(editAmount);
+        if (isNaN(newAmtVal) || newAmtVal <= 0) return;
+
+        // Balance Check Logic for Edit:
+        // We revert the old amount first, then check if we can afford the new amount.
+        const accData = getAccountData();
         
-        // Update local state to reflect new balance immediately in dropdowns if needed
-        setAccounts(accData.banks);
+        // 1. Revert Old
+        let tempCash = accData.cash;
+        let tempBanks = [...accData.banks];
+
+        if (originalPayment.sourceAccountId === 'CASH') {
+            tempCash += originalPayment.amount;
+        } else {
+            const bankIdx = tempBanks.findIndex(b => b.id === originalPayment.sourceAccountId);
+            if (bankIdx >= 0) tempBanks[bankIdx].amount += originalPayment.amount;
+        }
+
+        // 2. Check New
+        let canAfford = false;
+        if (originalPayment.sourceAccountId === 'CASH') {
+            if (tempCash >= newAmtVal) canAfford = true;
+        } else {
+            const bank = tempBanks.find(b => b.id === originalPayment.sourceAccountId);
+            if (bank && bank.amount >= newAmtVal) canAfford = true;
+        }
+
+        if (!canAfford) {
+            alert("Saldo insuficiente para el nuevo monto.");
+            return;
+        }
+
+        // 3. Apply New
+        if (originalPayment.sourceAccountId === 'CASH') {
+            tempCash -= newAmtVal;
+        } else {
+            const bankIdx = tempBanks.findIndex(b => b.id === originalPayment.sourceAccountId);
+            if (bankIdx >= 0) tempBanks[bankIdx].amount -= newAmtVal;
+        }
+
+        // Save Account Data
+        accData.cash = tempCash;
+        accData.banks = tempBanks;
+        saveAccountData(accData);
+
+        // Update History
+        const updatedHistory = history.map(h => h.id === originalPayment.id ? { ...h, amount: newAmtVal, description: editDesc } : h);
+        setHistory(updatedHistory);
+        localStorage.setItem(storageKeyPayments, JSON.stringify(updatedHistory));
+        
+        setEditingId(null);
     };
 
     return (
@@ -153,12 +239,38 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ businessName }) => {
                          <div className="flex-1 overflow-y-auto space-y-2 max-h-[400px]">
                              {history.length === 0 && <p className="text-slate-500 text-sm italic">No hay pagos registrados.</p>}
                              {history.map(p => (
-                                 <div key={p.id} className="bg-slate-800/30 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
-                                     <div>
-                                         <p className="font-bold text-white text-sm">{p.description}</p>
-                                         <p className="text-xs text-slate-500">{new Date(p.date).toLocaleDateString()} • {p.sourceAccountId === 'CASH' ? 'Efectivo' : 'Banco'}</p>
-                                     </div>
-                                     <span className="font-bold text-red-500">-${p.amount.toFixed(2)}</span>
+                                 <div key={p.id} className="bg-slate-800/30 p-3 rounded-xl border border-slate-800 flex justify-between items-center group">
+                                     {editingId === p.id ? (
+                                         <div className="flex-1 flex gap-2 items-center">
+                                             <input 
+                                                value={editDesc} 
+                                                onChange={(e) => setEditDesc(e.target.value)}
+                                                className="bg-slate-900 rounded p-1 text-xs text-white border border-slate-600 w-full"
+                                             />
+                                             <input 
+                                                type="number"
+                                                value={editAmount} 
+                                                onChange={(e) => setEditAmount(e.target.value)}
+                                                className="bg-slate-900 rounded p-1 text-xs text-white border border-slate-600 w-20"
+                                             />
+                                             <button onClick={() => saveEdit(p)} className="text-emerald-500"><Save size={16}/></button>
+                                             <button onClick={cancelEditing} className="text-slate-400"><X size={16}/></button>
+                                         </div>
+                                     ) : (
+                                         <>
+                                            <div>
+                                                <p className="font-bold text-white text-sm">{p.description}</p>
+                                                <p className="text-xs text-slate-500">{new Date(p.date).toLocaleDateString()} • {p.sourceAccountId === 'CASH' ? 'Efectivo' : 'Banco'}</p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-bold text-red-500">-${p.amount.toFixed(2)}</span>
+                                                <div className="flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => startEditing(p)} className="text-slate-400 hover:text-white"><Edit2 size={14} /></button>
+                                                    <button onClick={() => handleDeletePayment(p)} className="text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
+                                                </div>
+                                            </div>
+                                         </>
+                                     )}
                                  </div>
                              ))}
                          </div>

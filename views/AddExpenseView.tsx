@@ -1,27 +1,30 @@
-import React, { useState } from 'react';
-import { Home, Zap, CreditCard, Wifi, Droplets, Settings, Info, CheckCircle, Lightbulb, ChevronLeft, ChevronRight, Plus, Truck, Megaphone, Percent } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Home, Zap, CreditCard, Wifi, Droplets, Settings, Info, CheckCircle, Lightbulb, ChevronLeft, ChevronRight, Plus, Truck, Megaphone, Percent, Trash2, Edit2 } from 'lucide-react';
 
 interface AddExpenseViewProps {
     onBack: () => void;
     businessName: string;
 }
 
-// Define the structure for expense data
+type TaxItem = {
+    id: number;
+    name: string;
+    percent: number;
+};
+
 type ExpenseData = {
     amount: string;
     isFixed: boolean;
     prorationMethod: string;
-    date?: string; // For Transport
-    salesTax?: string; // For Taxes
-    incomeTax?: string; // For Taxes
+    date?: string; 
+    taxList?: TaxItem[]; // New structure for taxes
 };
 
 export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, businessName }) => {
-    // Updated Categories definition
     const categories = [
-        { id: 'transport', label: 'Transporte', icon: Truck }, // Added Transport
-        { id: 'marketing', label: 'Marketing', icon: Megaphone }, // Added Marketing
-        { id: 'taxes', label: 'Impuestos', icon: Percent }, // Added Taxes
+        { id: 'transport', label: 'Transporte', icon: Truck },
+        { id: 'marketing', label: 'Marketing', icon: Megaphone },
+        { id: 'taxes', label: 'Impuestos', icon: Percent },
         { id: 'rent', label: 'Renta', icon: Home },
         { id: 'power', label: 'Luz', icon: Zap },
         { id: 'salaries', label: 'Salarios', icon: CreditCard },
@@ -33,20 +36,47 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
     
     // Store data per category ID
     const [expensesData, setExpensesData] = useState<Record<string, ExpenseData>>({
-        // Initialize default taxes
-        taxes: { amount: '0', isFixed: false, prorationMethod: 'value', salesTax: '10', incomeTax: '10' },
-        // Initialize Transport with today's date
+        // Default taxes now use a list
+        taxes: { 
+            amount: '0', 
+            isFixed: false, 
+            prorationMethod: 'value', 
+            taxList: [
+                { id: 1, name: 'Sobre Ventas', percent: 10 },
+                { id: 2, name: 'Ingresos Personales', percent: 10 }
+            ] 
+        },
         transport: { amount: '', isFixed: false, prorationMethod: 'units', date: new Date().toISOString().split('T')[0] } 
     });
 
+    // Load existing data
+    useEffect(() => {
+        const storageKey = `Gestor_${businessName.replace(/\s+/g, '_')}_expenses`;
+        const savedData = localStorage.getItem(storageKey);
+        if (savedData) {
+            const parsed = JSON.parse(savedData);
+            // Migrate old structure if needed
+            if (parsed.taxes && !parsed.taxes.taxList) {
+                parsed.taxes.taxList = [
+                     { id: 1, name: 'Sobre Ventas', percent: parseFloat(parsed.taxes.salesTax || '10') },
+                     { id: 2, name: 'Ingresos Personales', percent: parseFloat(parsed.taxes.incomeTax || '10') }
+                ];
+            }
+            setExpensesData(prev => ({ ...prev, ...parsed }));
+        }
+    }, [businessName]);
+
     const currentCategory = categories[selectedCategoryIndex];
-    
-    // Get current values or defaults
     const currentValues = expensesData[currentCategory?.id] || { 
         amount: '', 
         isFixed: true, 
         prorationMethod: 'value' 
     };
+
+    // Tax UI State
+    const [newTaxName, setNewTaxName] = useState('');
+    const [newTaxPercent, setNewTaxPercent] = useState('');
+    const [editingTaxId, setEditingTaxId] = useState<number | null>(null);
 
     const updateCurrentExpense = (field: keyof ExpenseData, value: any) => {
         if (!currentCategory) return;
@@ -59,41 +89,57 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
         }));
     };
 
-    const handlePrev = () => {
-        if (selectedCategoryIndex > 0) {
-            setSelectedCategoryIndex(selectedCategoryIndex - 1);
+    const handleAddTax = () => {
+        if (!newTaxName || !newTaxPercent) return;
+        const percent = parseFloat(newTaxPercent);
+        if (isNaN(percent)) return;
+
+        const currentList = currentValues.taxList || [];
+        
+        if (editingTaxId) {
+             const updatedList = currentList.map(t => t.id === editingTaxId ? { ...t, name: newTaxName, percent } : t);
+             updateCurrentExpense('taxList', updatedList);
+             setEditingTaxId(null);
         } else {
-             // Loop to end for continuity feel
-             setSelectedCategoryIndex(categories.length - 1);
+             const newTax: TaxItem = { id: Date.now(), name: newTaxName, percent };
+             updateCurrentExpense('taxList', [...currentList, newTax]);
         }
+        
+        setNewTaxName('');
+        setNewTaxPercent('');
+    };
+
+    const handleEditTax = (tax: TaxItem) => {
+        setNewTaxName(tax.name);
+        setNewTaxPercent(tax.percent.toString());
+        setEditingTaxId(tax.id);
+    };
+
+    const handleDeleteTax = (id: number) => {
+        const currentList = currentValues.taxList || [];
+        updateCurrentExpense('taxList', currentList.filter(t => t.id !== id));
+    };
+
+    const handlePrev = () => {
+        setSelectedCategoryIndex(prev => (prev > 0 ? prev - 1 : categories.length - 1));
     };
 
     const handleNext = () => {
-        if (selectedCategoryIndex < categories.length - 1) {
-            setSelectedCategoryIndex(selectedCategoryIndex + 1);
-        } else {
-            // Loop to start for continuity feel
-            setSelectedCategoryIndex(0);
-        }
+        setSelectedCategoryIndex(prev => (prev < categories.length - 1 ? prev + 1 : 0));
     };
 
     const handleValidate = () => {
-        // Apply 5% logic to Salary before saving
         const finalData = { ...expensesData };
         if (finalData.salaries && finalData.salaries.amount) {
             const rawSalary = parseFloat(finalData.salaries.amount);
             finalData.salaries.amount = (rawSalary * 1.05).toFixed(2);
         }
 
-        console.log("Saving to folder:", `Gestor_${businessName}_expenses`, finalData);
-        // Save to LocalStorage "folder"
         const storageKey = `Gestor_${businessName.replace(/\s+/g, '_')}_expenses`;
         localStorage.setItem(storageKey, JSON.stringify(finalData));
-        
         onBack();
     };
 
-    // Helper to calculate display amount (especially for salary preview)
     const getDisplayAmount = () => {
         if (currentCategory.id === 'salaries' && currentValues.amount) {
             return (parseFloat(currentValues.amount) * 1.05).toFixed(2);
@@ -103,7 +149,6 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
 
     return (
         <div className="flex flex-col h-full bg-slate-900 max-w-2xl mx-auto w-full">
-            {/* Header */}
             <header className="px-6 pt-4 pb-2 flex items-center justify-between sticky top-0 bg-slate-900 z-10 border-b border-slate-800/50 mb-6">
                 <button onClick={onBack} className="text-orange-500 font-medium text-sm">Cancelar</button> 
                 <h1 className="text-lg font-bold text-white">Gastos Generales</h1>
@@ -117,22 +162,12 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
 
             <main className="flex-1 overflow-y-auto px-6 py-4 space-y-8 no-scrollbar pb-32">
                 
-                {/* Category Navigation - Adjusted for stability */}
                 <section className="space-y-3">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Seleccionar Categoría</label>
                     <div className="flex items-center justify-between gap-2">
-                        <button 
-                            onClick={handlePrev}
-                            className="p-2 shrink-0 rounded-full border border-slate-700 text-orange-500 bg-slate-800 active:scale-95 transition-transform"
-                        >
-                            <ChevronLeft size={20} />
-                        </button>
-
+                        <button onClick={handlePrev} className="p-2 shrink-0 rounded-full border border-slate-700 text-orange-500 bg-slate-800 active:scale-95 transition-transform"><ChevronLeft size={20} /></button>
                         <div className="flex-1 overflow-hidden relative h-24 bg-slate-800/20 rounded-xl">
-                             <div 
-                                className="absolute top-0 left-0 w-full h-full flex items-center justify-center transition-all duration-300"
-                             >
-                                {/* Render Previous, Current, Next for visual continuity feeling, but keep simple state */}
+                             <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center transition-all duration-300">
                                 <div className="flex flex-col items-center space-y-2 w-24 flex-shrink-0 cursor-pointer transition-all animate-in fade-in zoom-in duration-300" key={currentCategory.id}>
                                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-lg bg-orange-500 text-white shadow-orange-500/30 scale-105">
                                         <currentCategory.icon size={28} />
@@ -141,56 +176,69 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
                                 </div>
                              </div>
                         </div>
-
-                        <button 
-                            onClick={handleNext}
-                            className="p-2 shrink-0 rounded-full border border-slate-700 text-orange-500 bg-slate-800 active:scale-95 transition-transform"
-                        >
-                            <ChevronRight size={20} />
-                        </button>
+                        <button onClick={handleNext} className="p-2 shrink-0 rounded-full border border-slate-700 text-orange-500 bg-slate-800 active:scale-95 transition-transform"><ChevronRight size={20} /></button>
                     </div>
                 </section>
 
-                {/* Dynamic Content based on Category */}
                 {currentCategory.id === 'taxes' ? (
                      <section className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50">
                             <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
                                 <Percent size={16} className="text-orange-500"/>
-                                Configuración de Impuestos
+                                Gestión de Impuestos
                             </h2>
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Impuesto sobre Ventas (%)</label>
-                                    <div className="flex items-center space-x-2">
+                            
+                            {/* Add/Edit Form */}
+                            <div className="bg-slate-900 p-3 rounded-lg border border-slate-700 mb-4">
+                                <div className="flex gap-2 mb-2">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Nombre del Impuesto"
+                                        value={newTaxName}
+                                        onChange={(e) => setNewTaxName(e.target.value)}
+                                        className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none"
+                                    />
+                                    <div className="relative w-24">
                                         <input 
-                                            type="number"
-                                            value={currentValues.salesTax || '10'}
-                                            onChange={(e) => updateCurrentExpense('salesTax', e.target.value)}
-                                            className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-xl font-bold text-white w-full outline-none focus:border-orange-500"
+                                            type="number" 
+                                            placeholder="%"
+                                            value={newTaxPercent}
+                                            onChange={(e) => setNewTaxPercent(e.target.value)}
+                                            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none pr-6"
                                         />
-                                        <span className="text-xl font-bold text-slate-500">%</span>
+                                        <span className="absolute right-2 top-2 text-slate-500 text-xs">%</span>
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Ingresos Personales (%)</label>
-                                    <div className="flex items-center space-x-2">
-                                        <input 
-                                            type="number"
-                                            value={currentValues.incomeTax || '10'}
-                                            onChange={(e) => updateCurrentExpense('incomeTax', e.target.value)}
-                                            className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-xl font-bold text-white w-full outline-none focus:border-orange-500"
-                                        />
-                                        <span className="text-xl font-bold text-slate-500">%</span>
-                                    </div>
-                                </div>
+                                <button 
+                                    onClick={handleAddTax}
+                                    className="w-full py-2 bg-orange-500 rounded-lg text-white font-bold text-xs hover:bg-orange-600 transition-colors"
+                                >
+                                    {editingTaxId ? 'Actualizar Impuesto' : 'Agregar Impuesto'}
+                                </button>
                             </div>
-                            <p className="text-xs text-slate-500 mt-4 italic">Estos porcentajes se aplicarán automáticamente al cálculo del precio de venta de cada producto.</p>
+
+                            {/* List */}
+                            <div className="space-y-2">
+                                {(currentValues.taxList || []).map(tax => (
+                                    <div key={tax.id} className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                                        <span className="text-sm text-white font-medium">{tax.name}</span>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-orange-500 font-bold">{tax.percent}%</span>
+                                            <div className="flex gap-1">
+                                                <button onClick={() => handleEditTax(tax)} className="p-1 text-slate-400 hover:text-white"><Edit2 size={14}/></button>
+                                                <button onClick={() => handleDeleteTax(tax.id)} className="p-1 text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {(!currentValues.taxList || currentValues.taxList.length === 0) && (
+                                    <p className="text-center text-xs text-slate-500 italic">No hay impuestos configurados.</p>
+                                )}
+                            </div>
                         </div>
                      </section>
                 ) : (
                     <>
-                        {/* Standard Amount Input */}
                         <section className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
                             <div className="text-center py-6">
                                 <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
@@ -213,7 +261,6 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
                                 )}
                             </div>
 
-                            {/* Specific Controls for Transport vs Others */}
                             {currentCategory.id === 'transport' ? (
                                 <div className="bg-slate-800/50 p-4 rounded-xl">
                                     <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Fecha del Gasto</label>
@@ -233,7 +280,6 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
                             )}
                         </section>
 
-                        {/* Classification - Now includes Transport for proration settings */}
                         <section className="space-y-6">
                             <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
                                 <div className="flex items-center space-x-3">
@@ -253,7 +299,6 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
                                 </div>
                             </div>
 
-                            {/* Distribution Method */}
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Método de Distribución</label>
@@ -287,7 +332,6 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
                     </>
                 )}
 
-                {/* Insight */}
                 {currentValues.amount && currentCategory.id !== 'taxes' && (
                      <div className="bg-orange-500/5 p-4 rounded-xl border border-orange-500/20 animate-pulse">
                         <div className="flex space-x-3">

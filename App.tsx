@@ -29,55 +29,80 @@ const App = () => {
   // Backup Modal State
   const [showBackupModal, setShowBackupModal] = useState(false);
 
-  // --- Logic for BCC Rate Fetching (Same as before) ---
-  const fetchBCCRate = async () => {
-    setIsLoadingRate(true);
-    try {
-        const targetUrl = 'https://www.bc.gob.cu/tasas-de-cambio';
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-        const response = await fetch(proxyUrl);
-        const data = await response.json();
-        
-        if (data.contents) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(data.contents, 'text/html');
-            const rows = Array.from(doc.querySelectorAll('tr'));
-            let foundRate = 0;
+  // --- Logic for BCC Rate Fetching with fallback ---
+  const fetchRate = async () => {
+      setIsLoadingRate(true);
+      let foundRate = 0;
 
-            for (const row of rows) {
-                const text = row.innerText || row.textContent || '';
-                if (text.includes('USD')) {
-                    const numbers = text.match(/\d+(\.\d+)?/g);
-                    if (numbers) {
-                        const values = numbers.map(n => parseFloat(n));
-                        const populationRateCandidate = values.find(v => v > 150 && v < 600);
-                        if (populationRateCandidate) {
-                             foundRate = populationRateCandidate;
-                             break; 
-                        }
-                    }
-                }
-            }
-            if (foundRate === 0) {
-                 const allText = doc.body.innerText;
-                 const allNumbers = allText.match(/\d+(\.\d+)?/g);
-                 if (allNumbers) {
-                     const validRates = allNumbers.map(n => parseFloat(n)).filter(n => n > 200 && n < 600);
-                     if (validRates.length > 0) foundRate = validRates[0]; 
-                 }
-            }
+      // 1. Try BCC
+      try {
+          const targetUrl = 'https://www.bc.gob.cu/tasas-de-cambio';
+          const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+          const response = await fetch(proxyUrl);
+          const data = await response.json();
 
-            if (foundRate > 0) {
-                const strRate = foundRate.toString();
-                setBccRate(strRate);
-                if (!isManualRate) setExchangeRate(strRate);
-            }
-        }
-    } catch (error) {
-        console.log("BCC fetch failed");
-    } finally {
-        setIsLoadingRate(false);
-    }
+          if (data.contents) {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(data.contents, 'text/html');
+              // Buscar en tablas por "USD"
+              const rows = Array.from(doc.querySelectorAll('tr'));
+              for (const row of rows) {
+                  const text = row.innerText || row.textContent || '';
+                  // BCC table usually has Currency Name, Buy, Sell, etc.
+                  // We look for USD and a value that makes sense for Population (Segmento 3)
+                  if (text.includes('USD')) {
+                       const numbers = text.match(/\d+(\.\d+)?/g);
+                       if (numbers) {
+                           const values = numbers.map(n => parseFloat(n));
+                           // Filter realistic values for "Población" (usually higher than 120, lower than 500 currently)
+                           const candidate = values.find(v => v > 150 && v < 600);
+                           if (candidate) {
+                               foundRate = candidate;
+                               break;
+                           }
+                       }
+                  }
+              }
+          }
+      } catch (e) {
+          console.warn("BCC failed, trying Cubadebate...");
+      }
+
+      // 2. Fallback: Cubadebate (widget sidebar)
+      if (foundRate === 0) {
+          try {
+              const targetUrl = 'http://www.cubadebate.cu/';
+              const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+              const response = await fetch(proxyUrl);
+              const data = await response.json();
+
+              if(data.contents) {
+                   const parser = new DOMParser();
+                   const doc = parser.parseFromString(data.contents, 'text/html');
+                   // Cubadebate usually has a widget with class "tasa-cambio" or similar, or just text search
+                   const text = doc.body.innerText;
+                   // Search pattern like "1 USD = X CUP" or similar context
+                   const match = text.match(/USD\s*=\s*(\d+)/i) || text.match(/1\s*USD\s*x\s*(\d+)/i);
+                   if (match && match[1]) {
+                       const val = parseFloat(match[1]);
+                       if (val > 100) foundRate = val;
+                   }
+              }
+          } catch (e) {
+              console.warn("Cubadebate failed.");
+          }
+      }
+
+      setIsLoadingRate(false);
+
+      if (foundRate > 0) {
+          const strRate = foundRate.toString();
+          setBccRate(strRate);
+          // If not manual, we suggest it but user must confirm
+          if (!isManualRate && !exchangeRate) {
+              setExchangeRate(strRate);
+          }
+      }
   };
 
   // --- Backup Logic ---
@@ -85,36 +110,26 @@ const App = () => {
       const lastBackup = localStorage.getItem('Gestor_LastBackupTime');
       const lastPrompt = localStorage.getItem('Gestor_LastBackupPrompt');
       const now = new Date();
-      
-      // Determine 6 AM today
       const today6am = new Date();
       today6am.setHours(6, 0, 0, 0);
       
-      // If now is before 6am, we look at yesterday's 6am cycle, but request says "start counting from 6am".
-      // So if it's 5 AM, we don't prompt yet for "today".
-      
-      if (now < today6am) return; // Wait until 6 AM
+      if (now < today6am) return; 
 
       let shouldPrompt = false;
-
       if (!lastBackup) {
           shouldPrompt = true;
       } else {
           const lastBackupDate = new Date(lastBackup);
-          // If last backup was before today 6am, we need a new one
           if (lastBackupDate < today6am) {
               shouldPrompt = true;
           }
       }
 
       if (shouldPrompt) {
-          // Check if we prompted recently (within 12 hours) and user cancelled
           if (lastPrompt) {
               const lastPromptDate = new Date(lastPrompt);
               const diffHours = (now.getTime() - lastPromptDate.getTime()) / (1000 * 60 * 60);
-              if (diffHours < 12) {
-                  return; // Don't annoy user yet
-              }
+              if (diffHours < 12) return;
           }
           setShowBackupModal(true);
           localStorage.setItem('Gestor_LastBackupPrompt', now.toISOString());
@@ -122,8 +137,6 @@ const App = () => {
   };
 
   const handlePerformBackup = () => {
-      // Reuse the backup logic logic via a simulated click or call
-      // Since SetupView has the logic, we'll implement a simple one here for the global modal
       let csvContent = "data:text/csv;charset=utf-8,KEY,VALUE_JSON\n";
       for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
@@ -143,7 +156,6 @@ const App = () => {
       link.click();
       document.body.removeChild(link);
 
-      // Register success
       localStorage.setItem('Gestor_LastBackupTime', new Date().toISOString());
       setShowBackupModal(false);
   };
@@ -169,25 +181,30 @@ const App = () => {
         setBusinessName(configName);
         setIsRateLinked(linkExchange);
         setCurrentView(ViewState.DASHBOARD);
-        checkBackupStatus(); // Check backup on load
+        checkBackupStatus(); 
         
         if (linkExchange) {
             const safeName = configName.replace(/\s+/g, '_');
             const rateKey = `Gestor_${safeName}_exchangeRate`;
             const rateData = JSON.parse(localStorage.getItem(rateKey) || '{}');
+            
             if (rateData.rate) setExchangeRate(rateData.rate);
             if (rateData.isManual) setIsManualRate(true);
-            fetchBCCRate();
+            
+            fetchRate(); // Fetch on load
+
+            // 24 Hour Update Logic
+            const lastUpdate = rateData.date;
             const today = new Date().toISOString().split('T')[0];
-            if (!rateData.isManual && rateData.date !== today) {
-                setShowExchangeModal(true); 
+            
+            if (lastUpdate !== today) {
+                setShowExchangeModal(true); // Force open if date changed
             }
         }
     } else {
         setCurrentView(ViewState.SETUP);
     }
 
-    // Interval to check backup status periodically (e.g., every hour) if app stays open
     const interval = setInterval(checkBackupStatus, 3600000);
     return () => clearInterval(interval);
   }, []);
@@ -325,7 +342,7 @@ const App = () => {
           </div>
       )}
 
-      {/* Exchange Rate Modal (Existing) */}
+      {/* Exchange Rate Modal */}
       {showExchangeModal && (
           <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
               <div className="bg-slate-900 border border-orange-500/30 p-6 rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-300">
@@ -346,8 +363,10 @@ const App = () => {
                   
                   <div className="mb-6 bg-slate-900/50 p-4 rounded-xl border border-slate-700 relative overflow-hidden">
                       <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs font-bold text-slate-400 uppercase">Tasa BCC (Seg. III)</span>
-                          {isLoadingRate && <RefreshCw size={12} className="animate-spin text-orange-500"/>}
+                          <span className="text-xs font-bold text-slate-400 uppercase">Tasa Detectada</span>
+                          <button onClick={fetchRate} className="text-orange-500 hover:text-white transition-colors" title="Forzar Actualización">
+                              <RefreshCw size={14} className={isLoadingRate ? "animate-spin" : ""} />
+                          </button>
                       </div>
                       {bccRate ? (
                           <div className="flex items-end gap-2">
@@ -362,6 +381,7 @@ const App = () => {
                               <CheckCircle size={16} className="text-emerald-500" />
                           </div>
                       )}
+                      <p className="text-[9px] text-slate-600 mt-1">Fuente: BC.gob.cu / Cubadebate</p>
                   </div>
 
                   <div className="flex items-center justify-between mb-4 px-1">

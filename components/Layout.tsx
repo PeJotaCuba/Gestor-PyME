@@ -64,11 +64,11 @@ export const Layout: React.FC<LayoutProps> = ({
 
            {!isSidebarCollapsed && (
                <div className="px-8 mb-4 animate-in fade-in duration-300">
-                    <p className="text-xs text-slate-500 font-medium">Versión Escritorio v1.3</p>
+                    <p className="text-xs text-slate-500 font-medium">Versión Escritorio v1.4</p>
                </div>
            )}
 
-           <nav className="flex-1 px-4 space-y-2 mt-2">
+           <nav className="flex-1 px-4 space-y-2 mt-2 overflow-y-auto no-scrollbar">
               <DesktopNavItem 
                 icon={<Home size={20}/>} 
                 label="Resumen Financiero" 
@@ -97,13 +97,7 @@ export const Layout: React.FC<LayoutProps> = ({
                 onClick={() => onNavigate?.('workshop')} 
                 collapsed={isSidebarCollapsed}
               />
-              <DesktopNavItem 
-                icon={<Banknote size={20}/>} 
-                label="Pagos" 
-                active={activeNav === 'payments'} 
-                onClick={() => onNavigate?.('payments')} 
-                collapsed={isSidebarCollapsed}
-              />
+              {/* Reordered: Accounts first, then Payments */}
               <DesktopNavItem 
                 icon={<CreditCard size={20}/>} 
                 label="Cuenta Corriente" 
@@ -111,6 +105,14 @@ export const Layout: React.FC<LayoutProps> = ({
                 onClick={() => onNavigate?.('accounts')} 
                 collapsed={isSidebarCollapsed}
               />
+              <DesktopNavItem 
+                icon={<Banknote size={20}/>} 
+                label="Pagos" 
+                active={activeNav === 'payments'} 
+                onClick={() => onNavigate?.('payments')} 
+                collapsed={isSidebarCollapsed}
+              />
+              <div className="h-px bg-slate-800 my-2"></div>
               <DesktopNavItem 
                 icon={<Settings size={20}/>} 
                 label="Configuración" 
@@ -130,9 +132,9 @@ export const Layout: React.FC<LayoutProps> = ({
             w-full relative flex flex-col overflow-hidden mx-auto transition-all duration-300
             ${isSetupMode 
                 ? 'md:max-w-lg md:h-auto md:min-h-0 md:bg-slate-900 md:rounded-3xl md:border md:border-slate-800 md:shadow-2xl md:my-auto' // Setup Mode Desktop Style
-                : 'md:max-w-full md:h-screen md:bg-slate-900 md:rounded-none md:border-none md:shadow-none' // Dashboard Mode Desktop Style
+                : 'md:max-w-full md:h-[100dvh] md:bg-slate-900 md:rounded-none md:border-none md:shadow-none' // Dashboard Mode Desktop Style (Dynamic Viewport Height)
             }
-            bg-slate-900 shadow-2xl h-screen sm:rounded-3xl sm:h-[95vh] sm:mt-[2.5vh] sm:border border-slate-800 max-w-md
+            bg-slate-900 shadow-2xl h-[100dvh] sm:rounded-3xl sm:h-[95vh] sm:mt-[2.5vh] sm:border border-slate-800 max-w-md
         `}>
           
           {/* HEADER SECTION */}
@@ -212,7 +214,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
           {/* MAIN CONTENT SCROLL AREA */}
           <div className={`flex-1 overflow-y-auto no-scrollbar relative bg-slate-900 text-white ${!isSetupMode ? 'md:p-8' : ''}`}>
-             <div className={`w-full h-full ${!isSetupMode ? 'md:max-w-7xl md:mx-auto' : ''}`}>
+             <div className={`w-full h-full pb-24 md:pb-8 ${!isSetupMode ? 'md:max-w-7xl md:mx-auto' : ''}`}>
                 {children}
              </div>
           </div>
@@ -244,17 +246,18 @@ export const Layout: React.FC<LayoutProps> = ({
                   icon={<Wrench size={20} />}
                   label="Taller"
               />
-               <MobileNavIcon 
-                  active={activeNav === 'payments'} 
-                  onClick={() => onNavigate?.('payments')}
-                  icon={<Banknote size={20} />}
-                  label="Pagos"
-              />
+              {/* Reordered for Mobile too */}
               <MobileNavIcon 
                   active={activeNav === 'accounts'} 
                   onClick={() => onNavigate?.('accounts')}
                   icon={<CreditCard size={20} />}
                   label="Cuentas"
+              />
+               <MobileNavIcon 
+                  active={activeNav === 'payments'} 
+                  onClick={() => onNavigate?.('payments')}
+                  icon={<Banknote size={20} />}
+                  label="Pagos"
               />
             </div>
           )}

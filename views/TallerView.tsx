@@ -11,18 +11,19 @@ interface MaterialInput {
     name: string;
     cost: number;
     qty: number;
+    uom: string; // Unit of Measure
 }
 
 export const TallerView: React.FC<TallerViewProps> = ({ businessName }) => {
     const [materials, setMaterials] = useState<MaterialInput[]>([
-        { id: Date.now(), name: '', cost: 0, qty: 1 }
+        { id: Date.now(), name: '', cost: 0, qty: 1, uom: 'u' }
     ]);
     const [finalProductName, setFinalProductName] = useState('');
     const [finalProductQty, setFinalProductQty] = useState(1);
     const [margin, setMargin] = useState(30);
 
     const addMaterial = () => {
-        setMaterials([...materials, { id: Date.now(), name: '', cost: 0, qty: 1 }]);
+        setMaterials([...materials, { id: Date.now(), name: '', cost: 0, qty: 1, uom: 'u' }]);
     };
 
     const removeMaterial = (id: number) => {
@@ -79,7 +80,7 @@ export const TallerView: React.FC<TallerViewProps> = ({ businessName }) => {
         alert("Producto creado y añadido al inventario.");
         
         // Reset
-        setMaterials([{ id: Date.now(), name: '', cost: 0, qty: 1 }]);
+        setMaterials([{ id: Date.now(), name: '', cost: 0, qty: 1, uom: 'u' }]);
         setFinalProductName('');
         setFinalProductQty(1);
     };
@@ -106,37 +107,74 @@ export const TallerView: React.FC<TallerViewProps> = ({ businessName }) => {
                         </button>
                     </div>
                     
-                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
                         {materials.map((m, idx) => (
                             <div key={m.id} className="grid grid-cols-12 gap-2 items-center bg-slate-900/50 p-2 rounded-lg">
                                 <span className="col-span-1 text-slate-500 text-xs font-mono">{idx + 1}</span>
-                                <div className="col-span-5">
+                                
+                                {/* Name Input */}
+                                <div className="col-span-4">
                                     <input 
                                         type="text" 
-                                        placeholder="Nombre Insumo"
+                                        placeholder="Insumo"
                                         value={m.name}
                                         onChange={(e) => updateMaterial(m.id, 'name', e.target.value)}
                                         className="w-full bg-transparent text-sm text-white outline-none placeholder-slate-600"
                                     />
                                 </div>
-                                <div className="col-span-3">
+
+                                {/* Unit Selector */}
+                                <div className="col-span-2">
+                                    <select 
+                                        value={m.uom}
+                                        onChange={(e) => updateMaterial(m.id, 'uom', e.target.value)}
+                                        className="w-full bg-slate-800 rounded px-1 py-1 text-[10px] text-white outline-none cursor-pointer"
+                                    >
+                                        <optgroup label="Unidad">
+                                            <option value="u">u (Unid)</option>
+                                        </optgroup>
+                                        <optgroup label="Masa">
+                                            <option value="lb">lb (Libra)</option>
+                                            <option value="kg">kg</option>
+                                            <option value="g">g</option>
+                                        </optgroup>
+                                        <optgroup label="Volumen">
+                                            <option value="L">L (Litro)</option>
+                                            <option value="ml">ml</option>
+                                        </optgroup>
+                                        <optgroup label="Longitud">
+                                            <option value="m">m</option>
+                                            <option value="cm">cm</option>
+                                        </optgroup>
+                                        <optgroup label="Superficie">
+                                            <option value="m2">m²</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+
+                                {/* Cost Input */}
+                                <div className="col-span-2">
                                     <input 
                                         type="number" 
-                                        placeholder="$ Costo"
+                                        placeholder="$"
                                         value={m.cost || ''}
                                         onChange={(e) => updateMaterial(m.id, 'cost', parseFloat(e.target.value))}
-                                        className="w-full bg-slate-800 rounded px-2 py-1 text-sm text-white outline-none"
+                                        className="w-full bg-slate-800 rounded px-2 py-1 text-sm text-white outline-none text-right"
                                     />
                                 </div>
+
+                                {/* Qty Input */}
                                 <div className="col-span-2">
                                      <input 
                                         type="number" 
-                                        placeholder="Cant"
+                                        placeholder="#"
                                         value={m.qty}
                                         onChange={(e) => updateMaterial(m.id, 'qty', parseFloat(e.target.value))}
                                         className="w-full bg-slate-800 rounded px-2 py-1 text-sm text-white outline-none text-center"
                                     />
                                 </div>
+
+                                {/* Delete */}
                                 <div className="col-span-1 flex justify-end">
                                     <button onClick={() => removeMaterial(m.id)} className="text-slate-600 hover:text-red-500">
                                         <Trash2 size={14} />

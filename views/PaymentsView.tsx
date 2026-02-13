@@ -32,6 +32,25 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ businessName }) => {
         const val = parseFloat(amount);
         if (isNaN(val) || val <= 0) return;
 
+        // Load current account data to check balance
+        const accData = JSON.parse(localStorage.getItem(storageKeyAccounts) || '{"cash": 0, "banks": []}');
+        let availableBalance = 0;
+
+        if (sourceAccount === 'CASH') {
+            availableBalance = accData.cash;
+        } else {
+            const bank = accData.banks.find((b: BankAccount) => b.id === sourceAccount);
+            if (bank) {
+                availableBalance = bank.amount;
+            }
+        }
+
+        // VALIDATION: Check for sufficient funds
+        if (val > availableBalance) {
+            alert("Saldo insuficiente en cuenta");
+            return;
+        }
+
         // 1. Save Record
         const newRecord: PaymentRecord = {
             id: Date.now(),
@@ -45,7 +64,6 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ businessName }) => {
         localStorage.setItem(storageKeyPayments, JSON.stringify(updatedHistory));
 
         // 2. Deduct Money
-        const accData = JSON.parse(localStorage.getItem(storageKeyAccounts) || '{"cash": 0, "banks": []}');
         if (sourceAccount === 'CASH') {
             accData.cash -= val;
         } else {
@@ -59,6 +77,9 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ businessName }) => {
         setDescription('');
         setSourceAccount('CASH');
         alert("Pago registrado correctamente.");
+        
+        // Update local state to reflect new balance immediately in dropdowns if needed
+        setAccounts(accData.banks);
     };
 
     return (

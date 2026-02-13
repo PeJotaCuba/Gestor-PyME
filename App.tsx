@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ViewState } from './types';
+import { ViewState, Product } from './types';
 import { Layout } from './components/Layout';
 import { SetupView } from './views/SetupView';
 import { DashboardView } from './views/DashboardView';
@@ -11,7 +11,7 @@ import { ImportView } from './views/ImportView';
 import { AddExpenseView } from './views/AddExpenseView';
 import { TallerView } from './views/TallerView';
 import { PaymentsView } from './views/PaymentsView';
-import { DollarSign, RefreshCw, Globe, CheckCircle, X, AlertTriangle, Download } from 'lucide-react';
+import { DollarSign, RefreshCw, Globe, CheckCircle, X, AlertTriangle, Download, ArrowRight } from 'lucide-react';
 
 const App = () => {
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.SETUP);
@@ -25,39 +25,67 @@ const App = () => {
   const [isManualRate, setIsManualRate] = useState(false);
   const [isLoadingRate, setIsLoadingRate] = useState(false);
   const [isRateLinked, setIsRateLinked] = useState(false);
+  const [lastRateDate, setLastRateDate] = useState('');
 
   // Backup Modal State
   const [showBackupModal, setShowBackupModal] = useState(false);
 
-  // --- Logic for BCC Rate Fetching with fallback ---
+  // --- Helper: Multi-Proxy Fetcher to avoid CORS errors ---
+  const fetchUrlContent = async (targetUrl: string): Promise<string | null> => {
+      const proxies = [
+          // Strategy 1: AllOrigins (Returns JSON with 'contents')
+          { url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, type: 'json' },
+          // Strategy 2: CodeTabs (Returns Raw HTML)
+          { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, type: 'text' },
+          // Strategy 3: CorsProxy (Returns Raw HTML)
+          { url: `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`, type: 'text' }
+      ];
+
+      for (const proxy of proxies) {
+          try {
+              const response = await fetch(proxy.url);
+              if (response.ok) {
+                  if (proxy.type === 'json') {
+                      const data = await response.json();
+                      return data.contents; 
+                  } else {
+                      return await response.text();
+                  }
+              }
+          } catch (e) {
+              console.warn(`Proxy failed: ${proxy.url}`, e);
+          }
+      }
+      return null;
+  };
+
+  // --- Logic for BCC/Cubadebate Rate Fetching ---
   const fetchRate = async () => {
       setIsLoadingRate(true);
       let foundRate = 0;
+      let source = '';
 
-      // 1. Try BCC
+      // 1. Try BCC (bc.gob.cu)
       try {
-          const targetUrl = 'https://www.bc.gob.cu/tasas-de-cambio';
-          const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-          const response = await fetch(proxyUrl);
-          const data = await response.json();
-
-          if (data.contents) {
+          const htmlContent = await fetchUrlContent('https://www.bc.gob.cu/tasas-de-cambio');
+          
+          if (htmlContent) {
               const parser = new DOMParser();
-              const doc = parser.parseFromString(data.contents, 'text/html');
-              // Buscar en tablas por "USD"
+              const doc = parser.parseFromString(htmlContent, 'text/html');
+              
               const rows = Array.from(doc.querySelectorAll('tr'));
               for (const row of rows) {
                   const text = row.innerText || row.textContent || '';
-                  // BCC table usually has Currency Name, Buy, Sell, etc.
-                  // We look for USD and a value that makes sense for Population (Segmento 3)
-                  if (text.includes('USD')) {
-                       const numbers = text.match(/\d+(\.\d+)?/g);
+                  if (text.toUpperCase().includes('USD')) {
+                       // Extract numbers, handling comma decimals
+                       const numbers = text.match(/\d+([.,]\d+)?/g);
                        if (numbers) {
-                           const values = numbers.map(n => parseFloat(n));
-                           // Filter realistic values for "Población" (usually higher than 120, lower than 500 currently)
-                           const candidate = values.find(v => v > 150 && v < 600);
+                           const values = numbers.map(n => parseFloat(n.replace(',', '.')));
+                           // Look for realistic market rate (e.g. > 60 and < 500)
+                           const candidate = values.find(v => v > 60 && v < 500);
                            if (candidate) {
                                foundRate = candidate;
+                               source = 'BCC';
                                break;
                            }
                        }
@@ -65,31 +93,40 @@ const App = () => {
               }
           }
       } catch (e) {
-          console.warn("BCC failed, trying Cubadebate...");
+          console.warn("BCC parsing failed", e);
       }
 
-      // 2. Fallback: Cubadebate (widget sidebar)
+      // 2. Fallback: Cubadebate (cubadebate.cu)
       if (foundRate === 0) {
           try {
-              const targetUrl = 'http://www.cubadebate.cu/';
-              const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-              const response = await fetch(proxyUrl);
-              const data = await response.json();
+              const htmlContent = await fetchUrlContent('http://www.cubadebate.cu/');
 
-              if(data.contents) {
-                   const parser = new DOMParser();
-                   const doc = parser.parseFromString(data.contents, 'text/html');
-                   // Cubadebate usually has a widget with class "tasa-cambio" or similar, or just text search
-                   const text = doc.body.innerText;
-                   // Search pattern like "1 USD = X CUP" or similar context
-                   const match = text.match(/USD\s*=\s*(\d+)/i) || text.match(/1\s*USD\s*x\s*(\d+)/i);
-                   if (match && match[1]) {
-                       const val = parseFloat(match[1]);
-                       if (val > 100) foundRate = val;
+              if(htmlContent) {
+                   // Clean up HTML tags to search text
+                   const div = document.createElement('div');
+                   div.innerHTML = htmlContent;
+                   const textContent = div.textContent || div.innerText || "";
+                   
+                   // Regex patterns for various widget formats
+                   const patterns = [
+                       /1\s*USD\s*[x=]\s*(\d+([.,]\d+)?)\s*CUP/i,
+                       /USD\s*(\d+([.,]\d+)?)\s*CUP/i
+                   ];
+
+                   for (const regex of patterns) {
+                       const match = textContent.match(regex);
+                       if (match && match[1]) {
+                           const val = parseFloat(match[1].replace(',', '.'));
+                           if (val > 20) {
+                               foundRate = val;
+                               source = 'Cubadebate';
+                               break;
+                           }
+                       }
                    }
               }
           } catch (e) {
-              console.warn("Cubadebate failed.");
+              console.warn("Cubadebate parsing failed", e);
           }
       }
 
@@ -98,10 +135,13 @@ const App = () => {
       if (foundRate > 0) {
           const strRate = foundRate.toString();
           setBccRate(strRate);
-          // If not manual, we suggest it but user must confirm
-          if (!isManualRate && !exchangeRate) {
+          // Auto-update if not manual
+          if (!isManualRate) {
               setExchangeRate(strRate);
           }
+          console.log(`Tasa actualizada desde ${source}: ${strRate}`);
+      } else {
+          console.log("No se pudo detectar la tasa automáticamente. Revise su conexión.");
       }
   };
 
@@ -186,19 +226,23 @@ const App = () => {
         if (linkExchange) {
             const safeName = configName.replace(/\s+/g, '_');
             const rateKey = `Gestor_${safeName}_exchangeRate`;
-            const rateData = JSON.parse(localStorage.getItem(rateKey) || '{}');
+            const rateDataRaw = localStorage.getItem(rateKey);
             
-            if (rateData.rate) setExchangeRate(rateData.rate);
-            if (rateData.isManual) setIsManualRate(true);
-            
-            fetchRate(); // Fetch on load
+            if(rateDataRaw) {
+                const rateData = JSON.parse(rateDataRaw);
+                if (rateData.rate) setExchangeRate(rateData.rate);
+                if (rateData.isManual) setIsManualRate(true);
+                setLastRateDate(rateData.date || '');
 
-            // 24 Hour Update Logic
-            const lastUpdate = rateData.date;
-            const today = new Date().toISOString().split('T')[0];
-            
-            if (lastUpdate !== today) {
-                setShowExchangeModal(true); // Force open if date changed
+                // 24 Hour Update Logic (Reset loop if date changed)
+                const today = new Date().toISOString().split('T')[0];
+                if (rateData.date !== today) {
+                    setShowExchangeModal(true); // Force open to update
+                    fetchRate(); // Attempt fetch
+                }
+            } else {
+                 setShowExchangeModal(true);
+                 fetchRate();
             }
         }
     } else {
@@ -229,12 +273,39 @@ const App = () => {
 
   const saveRateToStorage = (bName: string, rate: string, manual: boolean) => {
       const today = new Date().toISOString().split('T')[0];
-      const rateKey = `Gestor_${bName.replace(/\s+/g, '_')}_exchangeRate`;
+      const safeName = bName.replace(/\s+/g, '_');
+      const rateKey = `Gestor_${safeName}_exchangeRate`;
+      
+      // Check previous rate to calculate increase percentage
+      const prevData = JSON.parse(localStorage.getItem(rateKey) || '{}');
+      const prevRate = parseFloat(prevData.rate || '0');
+      const newRate = parseFloat(rate);
+
       localStorage.setItem(rateKey, JSON.stringify({
           date: today,
           rate: rate,
           isManual: manual
       }));
+      setLastRateDate(today);
+
+      // --- Product Price Auto-Update Logic ---
+      if (prevRate > 0 && newRate > prevRate) {
+          const increaseRatio = newRate / prevRate;
+          const percentInc = ((increaseRatio - 1) * 100).toFixed(1);
+          
+          if (window.confirm(`La tasa ha aumentado un ${percentInc}%. ¿Desea ajustar automáticamente los precios de venta de sus productos?`)) {
+              const prodKey = `Gestor_${safeName}_products`;
+              const products: Product[] = JSON.parse(localStorage.getItem(prodKey) || '[]');
+              
+              const updatedProducts = products.map(p => ({
+                  ...p,
+                  sale: parseFloat((p.sale * increaseRatio).toFixed(2)) 
+              }));
+              
+              localStorage.setItem(prodKey, JSON.stringify(updatedProducts));
+              alert("Precios actualizados correctamente.");
+          }
+      }
   };
 
   const handleSaveExchangeRate = () => {
@@ -304,7 +375,7 @@ const App = () => {
         onNavigate={handleNavigation}
         onAddClick={() => setCurrentView(ViewState.ADD_PRODUCT)}
         currentExchangeRate={isRateLinked ? exchangeRate : undefined} 
-        onOpenExchange={() => setShowExchangeModal(true)}
+        onOpenExchange={() => { setShowExchangeModal(true); fetchRate(); }}
         isSetupMode={isSetup}
         businessName={businessName}
     >
@@ -353,7 +424,9 @@ const App = () => {
                         </div>
                         <div>
                             <h2 className="text-xl font-bold text-white">Tasa del Día</h2>
-                            <p className="text-xs text-slate-400">Gestión de Tasa de Cambio</p>
+                            <p className="text-xs text-slate-400">
+                                {new Date().toISOString().split('T')[0] === lastRateDate ? 'Actualizada hoy' : 'Requiere actualización'}
+                            </p>
                         </div>
                     </div>
                     <button onClick={() => setShowExchangeModal(false)} className="text-slate-500 hover:text-white">
@@ -361,29 +434,44 @@ const App = () => {
                     </button>
                   </div>
                   
+                  {/* Main Rate Display */}
                   <div className="mb-6 bg-slate-900/50 p-4 rounded-xl border border-slate-700 relative overflow-hidden">
-                      <div className="flex justify-between items-center mb-1">
+                      <div className="flex justify-between items-center mb-2">
                           <span className="text-xs font-bold text-slate-400 uppercase">Tasa Detectada</span>
-                          <button onClick={fetchRate} className="text-orange-500 hover:text-white transition-colors" title="Forzar Actualización">
-                              <RefreshCw size={14} className={isLoadingRate ? "animate-spin" : ""} />
+                          {/* Botón de Actualizar al lado de la carga */}
+                          <button 
+                                onClick={fetchRate} 
+                                className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-full text-[10px] font-bold text-orange-500 border border-slate-700 transition-colors"
+                          >
+                                <RefreshCw size={10} className={isLoadingRate ? "animate-spin" : ""} />
+                                ACTUALIZAR
                           </button>
                       </div>
-                      {bccRate ? (
-                          <div className="flex items-end gap-2">
-                              <span className="text-2xl font-extrabold text-emerald-400">${bccRate}</span>
-                              <span className="text-sm font-bold text-slate-500 mb-1">CUP</span>
-                          </div>
-                      ) : (
-                          <span className="text-sm text-slate-500 italic">Cargando tasa oficial...</span>
-                      )}
+                      
+                      <div className="flex flex-col">
+                        {bccRate ? (
+                            <div className="flex items-end gap-2">
+                                <span className="text-3xl font-extrabold text-emerald-400">${bccRate}</span>
+                                <span className="text-sm font-bold text-slate-500 mb-1">CUP</span>
+                            </div>
+                        ) : (
+                            <span className="text-sm text-slate-500 italic py-2">
+                                {isLoadingRate ? 'Consultando bancos...' : 'Tasa no disponible. Intente actualizar.'}
+                            </span>
+                        )}
+                        <p className="text-[9px] text-slate-600 mt-1">
+                             Fuente: BC.gob.cu / Cubadebate (Alternativa)
+                        </p>
+                      </div>
+
                       {!isManualRate && bccRate && (
                           <div className="absolute top-2 right-2">
                               <CheckCircle size={16} className="text-emerald-500" />
                           </div>
                       )}
-                      <p className="text-[9px] text-slate-600 mt-1">Fuente: BC.gob.cu / Cubadebate</p>
                   </div>
 
+                  {/* Manual Toggle */}
                   <div className="flex items-center justify-between mb-4 px-1">
                       <span className="text-sm font-bold text-white">Editar Tasa Manualmente</span>
                       <div 
@@ -416,9 +504,10 @@ const App = () => {
                   <button 
                       onClick={handleSaveExchangeRate}
                       disabled={!exchangeRate}
-                      className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-orange-500/20"
+                      className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2"
                   >
-                      Confirmar Tasa
+                      <span>Confirmar y Guardar</span>
+                      <ArrowRight size={18} />
                   </button>
               </div>
           </div>

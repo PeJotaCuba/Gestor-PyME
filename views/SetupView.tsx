@@ -9,7 +9,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
   const [businessType, setBusinessType] = useState('retail');
   const [name, setName] = useState('');
   
-  // Exchange Rate Logic
+  // Exchange Rate Logic - DEFAULT OFF
   const [linkExchangeRate, setLinkExchangeRate] = useState(false);
   const [showRateModal, setShowRateModal] = useState(false);
   
@@ -46,64 +46,94 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
     }
   }, []);
 
+  // --- Helper: Multi-Proxy Fetcher ---
+  const fetchUrlContent = async (targetUrl: string): Promise<string | null> => {
+      const proxies = [
+          { url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, type: 'json' },
+          { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, type: 'text' },
+          { url: `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`, type: 'text' }
+      ];
+
+      for (const proxy of proxies) {
+          try {
+              const response = await fetch(proxy.url);
+              if (response.ok) {
+                  if (proxy.type === 'json') {
+                      const data = await response.json();
+                      return data.contents; 
+                  } else {
+                      return await response.text();
+                  }
+              }
+          } catch (e) {
+              console.warn(`Proxy failed: ${proxy.url}`, e);
+          }
+      }
+      return null;
+  };
+
   const fetchBCCRate = async () => {
     setIsLoadingRate(true);
-    
-    try {
-        const targetUrl = 'https://www.bc.gob.cu/tasas-de-cambio';
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-        
-        const response = await fetch(proxyUrl);
-        const data = await response.json();
-        
-        if (data.contents) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(data.contents, 'text/html');
-            
-            // Lógica Mejorada para Segmento 3
-            const rows = Array.from(doc.querySelectorAll('tr'));
-            let foundRate = 0;
+    let foundRate = 0;
 
-            for (const row of rows) {
-                const text = row.innerText || row.textContent || '';
-                // Buscamos indicadores del segmento población
-                if (text.includes('USD')) {
-                    const numbers = text.match(/\d+(\.\d+)?/g);
-                    if (numbers) {
-                        const values = numbers.map(n => parseFloat(n));
-                        // Buscar valores que sean realistas para el mercado de población (>150 y <600)
-                        const populationRateCandidate = values.find(v => v > 150 && v < 600);
-                        if (populationRateCandidate) {
-                             foundRate = populationRateCandidate;
-                             break;
-                        }
-                    }
-                }
-            }
+      // 1. Try BCC (bc.gob.cu)
+      try {
+          const htmlContent = await fetchUrlContent('https://www.bc.gob.cu/tasas-de-cambio');
+          
+          if (htmlContent) {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(htmlContent, 'text/html');
+              
+              const rows = Array.from(doc.querySelectorAll('tr'));
+              for (const row of rows) {
+                  const text = row.innerText || row.textContent || '';
+                  if (text.toUpperCase().includes('USD')) {
+                       const numbers = text.match(/\d+([.,]\d+)?/g);
+                       if (numbers) {
+                           const values = numbers.map(n => parseFloat(n.replace(',', '.')));
+                           const candidate = values.find(v => v > 60 && v < 500);
+                           if (candidate) {
+                               foundRate = candidate;
+                               break;
+                           }
+                       }
+                  }
+              }
+          }
+      } catch (e) {
+          console.warn("BCC failed, trying Cubadebate...");
+      }
 
-            // Si no encontró en tabla, buscar en texto plano (fallback)
-             if (foundRate === 0) {
-                 const allText = doc.body.innerText;
-                 const allNumbers = allText.match(/\d+(\.\d+)?/g);
-                 if (allNumbers) {
-                     const validRates = allNumbers.map(n => parseFloat(n)).filter(n => n > 200 && n < 600);
-                     if (validRates.length > 0) {
-                         foundRate = validRates[0]; 
-                     }
-                 }
-            }
+      // 2. Fallback: Cubadebate (cubadebate.cu)
+      if (foundRate === 0) {
+          try {
+              const htmlContent = await fetchUrlContent('http://www.cubadebate.cu/');
 
-            if (foundRate > 0) {
-                setBccRate(foundRate.toString());
-                if (!isManual) {
-                    setExchangeRate(foundRate.toString());
-                }
-            }
+              if(htmlContent) {
+                   const div = document.createElement('div');
+                   div.innerHTML = htmlContent;
+                   const textContent = div.textContent || "";
+
+                   const regex = /1\s*USD\s*[x=]\s*(\d+([.,]\d+)?)\s*CUP/i;
+                   const match = textContent.match(regex);
+                   
+                   if (match && match[1]) {
+                       const val = parseFloat(match[1].replace(',', '.'));
+                       if (val > 20) foundRate = val;
+                   }
+              }
+          } catch (e) {
+              console.warn("Cubadebate failed.");
+          }
+      }
+
+    setIsLoadingRate(false);
+
+    if (foundRate > 0) {
+        setBccRate(foundRate.toString());
+        if (!isManual) {
+            setExchangeRate(foundRate.toString());
         }
-    } catch (error) {
-        console.warn("Error leyendo sitio BCC", error);
-    } finally {
-        setIsLoadingRate(false);
     }
   };
 
@@ -141,17 +171,13 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
 
   // --- Backup & Restore Logic ---
   const handleBackup = () => {
-      // Create a CSV format where each line is Key,Value(JSON)
-      // This is necessary to restore full local storage state properly
       let csvContent = "data:text/csv;charset=utf-8,KEY,VALUE_JSON\n";
-      
       let count = 0;
       for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && key.startsWith('Gestor_')) {
               const val = localStorage.getItem(key);
               if (val) {
-                  // Escape quotes for CSV safety
                   const escapedVal = val.replace(/"/g, '""');
                   csvContent += `${key},"${escapedVal}"\n`;
                   count++;
@@ -182,8 +208,6 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
           let restoredCount = 0;
 
           try {
-              // Clear current app data to avoid conflicts
-              // Only clear keys starting with Gestor_
               const keysToRemove = [];
               for(let i=0; i<localStorage.length; i++) {
                   const k = localStorage.key(i);
@@ -191,19 +215,15 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
               }
               keysToRemove.forEach(k => localStorage.removeItem(k));
 
-              // Parse CSV simple parser
               lines.forEach((line, index) => {
-                  if (index === 0) return; // Skip header
+                  if (index === 0) return; 
                   if (!line.trim()) return;
 
-                  // CSV Split handling quotes is tricky, simple regex for "key","val"
-                  // Assumption: Key is simple string, Val is quoted JSON
                   const firstCommaIndex = line.indexOf(',');
                   if (firstCommaIndex > -1) {
                       const key = line.substring(0, firstCommaIndex).trim();
                       let val = line.substring(firstCommaIndex + 1).trim();
                       
-                      // Remove surrounding quotes if present and unescape double quotes
                       if (val.startsWith('"') && val.endsWith('"')) {
                           val = val.substring(1, val.length - 1);
                           val = val.replace(/""/g, '"');
@@ -279,7 +299,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
                 </div>
                 <div>
                     <p className="font-bold text-sm text-white">Vincular a Tasa de Cambio</p>
-                    <p className="text-xs text-slate-400">BCC Segmento III (Población)</p>
+                    <p className="text-xs text-slate-400">BCC o Cubadebate (Automático)</p>
                 </div>
             </div>
             <div 
@@ -295,7 +315,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
             <div className="px-4 py-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                  <p className="text-xs text-emerald-400 font-medium">
-                     Tasa: <strong>${exchangeRate}</strong> {isManual ? '(Manual)' : '(BCC)'}
+                     Tasa: <strong>${exchangeRate}</strong> {isManual ? '(Manual)' : '(Auto)'}
                  </p>
             </div>
         )}
@@ -393,8 +413,15 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
                   {/* BCC Rate Display */}
                   <div className="mb-6 bg-slate-900/50 p-4 rounded-xl border border-slate-700 relative overflow-hidden">
                       <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs font-bold text-slate-400 uppercase">Tasa BCC (Seg. III)</span>
-                          {isLoadingRate && <RefreshCw size={12} className="animate-spin text-orange-500"/>}
+                          <span className="text-xs font-bold text-slate-400 uppercase">Tasa Detectada</span>
+                          {/* Botón Manual de Actualizar */}
+                          <button 
+                                onClick={fetchBCCRate} 
+                                className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-full text-[10px] font-bold text-orange-500 border border-slate-700 transition-colors"
+                          >
+                                <RefreshCw size={10} className={isLoadingRate ? "animate-spin" : ""} />
+                                ACTUALIZAR
+                          </button>
                       </div>
                       {bccRate ? (
                           <div className="flex items-end gap-2">
@@ -402,13 +429,16 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
                               <span className="text-sm font-bold text-slate-500 mb-1">CUP</span>
                           </div>
                       ) : (
-                          <span className="text-sm text-slate-500 italic">Cargando tasa oficial...</span>
+                          <span className="text-sm text-slate-500 italic">
+                               {isLoadingRate ? 'Consultando fuentes...' : 'Tasa no disponible. Intente actualizar.'}
+                          </span>
                       )}
                       {!isManual && bccRate && (
                           <div className="absolute top-2 right-2">
                               <CheckCircle size={16} className="text-emerald-500" />
                           </div>
                       )}
+                      <p className="text-[9px] text-slate-600 mt-1">Fuente: BC.gob.cu / Cubadebate</p>
                   </div>
 
                   {/* Manual Toggle */}
@@ -441,7 +471,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
                       <p className="text-[10px] text-slate-500 mt-2">
                           {isManual 
                             ? 'Estás editando la tasa manualmente. Este valor anulará la tasa oficial.' 
-                            : 'Usando la tasa detectada automáticamente del Banco Central de Cuba.'}
+                            : 'Usando la tasa detectada automáticamente.'}
                       </p>
                   </div>
 

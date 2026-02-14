@@ -1,5 +1,7 @@
 
 export enum ViewState {
+  AUTH = 'AUTH',
+  DEV_PANEL = 'DEV_PANEL',
   SETUP = 'SETUP',
   DASHBOARD = 'DASHBOARD',
   SALES = 'SALES',
@@ -10,6 +12,12 @@ export enum ViewState {
   CURRENT_ACCOUNT = 'CURRENT_ACCOUNT',
   WORKSHOP = 'WORKSHOP',
   PAYMENTS = 'PAYMENTS'
+}
+
+export enum UserRole {
+  LEADER = 'LEADER',
+  ASSISTANT = 'ASSISTANT',
+  DEVELOPER = 'DEVELOPER'
 }
 
 export interface BusinessProfile {

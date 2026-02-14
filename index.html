@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
@@ -29,11 +29,18 @@
     </script>
     <style>
       body {
-        background-color: #000;
+        /* Default Light Mode bg */
+        background-color: #f8fafc; 
         margin: 0;
         font-family: 'Manrope', sans-serif;
         -webkit-tap-highlight-color: transparent;
+        transition: background-color 0.3s ease;
       }
+      /* Dark mode body handled by Tailwind class on html */
+      .dark body {
+        background-color: #020617;
+      }
+
       /* Hide scrollbar for Chrome, Safari and Opera */
       .no-scrollbar::-webkit-scrollbar {
           display: none;
@@ -51,7 +58,10 @@
     "react/": "https://esm.sh/react@^19.2.4/",
     "react": "https://esm.sh/react@^19.2.4",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0"
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"
   }
 }
 </script>

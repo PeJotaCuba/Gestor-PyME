@@ -72,10 +72,6 @@ export const CurrentAccountView: React.FC<CurrentAccountViewProps> = ({ business
       saveToStorage(cashAmount, updated);
   };
 
-  const handleExport = (format: 'csv' | 'doc' | 'pdf') => {
-      // Export Logic
-  };
-
   const totalFunds = cashAmount + bankAccounts.reduce((sum, b) => sum + b.amount, 0);
 
   return (
@@ -85,13 +81,6 @@ export const CurrentAccountView: React.FC<CurrentAccountViewProps> = ({ business
             <div>
                 <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1 print:text-black">Fondo Unificado</p>
                 <h1 className="text-4xl font-extrabold text-white print:text-black">${totalFunds.toLocaleString('en-US', {minimumFractionDigits: 2})}</h1>
-            </div>
-            <div className="flex flex-col gap-2 print:hidden">
-                <div className="flex bg-slate-700/50 rounded-lg border border-slate-600">
-                    <button onClick={() => handleExport('csv')} className="px-3 py-2 text-xs font-bold text-emerald-500 hover:bg-slate-700 border-r border-slate-600">XLSX</button>
-                    <button onClick={() => handleExport('doc')} className="px-3 py-2 text-xs font-bold text-blue-500 hover:bg-slate-700 border-r border-slate-600">DOCX</button>
-                    <button onClick={() => handleExport('pdf')} className="px-3 py-2 text-xs font-bold text-red-500 hover:bg-slate-700">PDF</button>
-                </div>
             </div>
         </div>
 

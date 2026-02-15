@@ -11,13 +11,29 @@ export enum ViewState {
   ADD_EXPENSE = 'ADD_EXPENSE',
   CURRENT_ACCOUNT = 'CURRENT_ACCOUNT',
   WORKSHOP = 'WORKSHOP',
-  PAYMENTS = 'PAYMENTS'
+  PAYMENTS = 'PAYMENTS',
+  CHAT = 'CHAT',
+  TRIAL_EXPIRED = 'TRIAL_EXPIRED'
 }
 
 export enum UserRole {
   LEADER = 'LEADER',
   ASSISTANT = 'ASSISTANT',
   DEVELOPER = 'DEVELOPER'
+}
+
+export interface CloudUser {
+    uid?: string;
+    username: string;
+    password?: string;
+    phone: string;
+    licenseKey: string;
+    role: UserRole;
+    name: string;
+    firstLogin?: any;
+    trialUntil?: any;
+    linkedLeaderId?: string;
+    licenseValidated?: boolean;
 }
 
 export interface BusinessProfile {
@@ -30,11 +46,11 @@ export interface Product {
   id: number;
   name: string;
   category?: string;
-  price: number; // Purchase Price
+  price: number;
   transport: number;
-  sale: number; // Sale Price
+  sale: number;
   date: string;
-  stock?: number; // Current calculated stock
+  stock?: number;
 }
 
 export interface StockMovement {
@@ -44,7 +60,7 @@ export interface StockMovement {
   quantity: number;
   date: string;
   reason: 'PROVISION' | 'SALE_DAILY' | 'SALE_CONTRACT' | 'ADJUSTMENT' | 'WORKSHOP_OUTPUT';
-  referenceId?: string; // ID of the sale if applicable
+  referenceId?: string;
 }
 
 export interface DailySale {
@@ -54,7 +70,7 @@ export interface DailySale {
   method: 'CASH' | 'DIGITAL';
   total: number;
   date: string;
-  destinationAccountId?: number; // ID of the bank account or 'CASH'
+  destinationAccountId?: number;
 }
 
 export interface ContractSale {
@@ -71,7 +87,7 @@ export interface ContractSale {
 export interface BankAccount {
   id: number;
   bankName: 'BANMET' | 'BANDEC' | 'BPA';
-  name: string; // User alias for the account
+  name: string;
   accountNumber: string;
   amount: number;
 }
@@ -81,5 +97,19 @@ export interface PaymentRecord {
     amount: number;
     description: string;
     date: string;
-    sourceAccountId: number | 'CASH'; // Where the money came from
+    sourceAccountId: number | 'CASH';
+}
+
+/**
+ * Chat Message structure
+ */
+export interface Message {
+    id?: string;
+    senderId: string;
+    senderName: string;
+    type: 'text' | 'file';
+    content: string;
+    timestamp: any;
+    fileUrl?: string;
+    fileName?: string;
 }

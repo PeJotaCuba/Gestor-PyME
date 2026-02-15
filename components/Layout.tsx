@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Signal, Wifi, Battery, DollarSign, Home, BarChart2, Package, Settings, LogOut, Menu, ChevronLeft, CreditCard, ShoppingBag, Wrench, Banknote, Sun, Moon, UserCircle, Terminal, X, ChevronRight } from 'lucide-react';
+import { Signal, Wifi, Battery, DollarSign, Home, BarChart2, Package, Settings, LogOut, Menu, ChevronLeft, CreditCard, ShoppingBag, Wrench, Banknote, Sun, Moon, UserCircle, Terminal, X, ChevronRight, MessageSquare } from 'lucide-react';
 import { UserRole } from '../types';
 
 interface LayoutProps {
@@ -131,6 +131,13 @@ export const Layout: React.FC<LayoutProps> = ({
                 )}
                 
                 <MobileDrawerItem 
+                    icon={<MessageSquare size={22} />} 
+                    label="Mensajes y Archivos" 
+                    active={activeNav === 'chat'} 
+                    onClick={() => handleMobileNavigate('chat')}
+                />
+
+                <MobileDrawerItem 
                     icon={<ShoppingBag size={22} />} 
                     label="Punto de Venta" 
                     active={activeNav === 'sales'} 
@@ -210,8 +217,8 @@ export const Layout: React.FC<LayoutProps> = ({
       </div>
 
 
-      {/* --- DESKTOP SIDEBAR (Sin cambios mayores) --- */}
-      {!isSetupMode && (
+      {/* --- DESKTOP SIDEBAR --- */}
+      {showNav && !isSetupMode && (
         <aside className={`hidden md:flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-screen sticky top-0 z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-72'}`}>
            <div className={`p-6 pb-4 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
               {!isSidebarCollapsed && (
@@ -254,6 +261,14 @@ export const Layout: React.FC<LayoutProps> = ({
                   />
               )}
               
+              <DesktopNavItem 
+                icon={<MessageSquare size={20}/>} 
+                label="Compartido" 
+                active={activeNav === 'chat'} 
+                onClick={() => onNavigate?.('chat')} 
+                collapsed={isSidebarCollapsed}
+              />
+
               <DesktopNavItem 
                 icon={<ShoppingBag size={20}/>} 
                 label="Ventas" 
@@ -347,47 +362,49 @@ export const Layout: React.FC<LayoutProps> = ({
           {/* HEADER SECTION */}
           <div className="shrink-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800/50 relative transition-colors duration-300">
             
-            {/* MOBILE HEADER (Actualizado: Botón Menú Izquierda) */}
-            <div className="h-16 flex md:hidden items-center justify-between px-4 pt-1">
-              
-              <div className="flex items-center gap-3">
-                  {/* Hamburguesa Trigger */}
-                  {showNav && (
-                      <button 
-                        onClick={() => setIsMobileMenuOpen(true)}
-                        className="p-2 -ml-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition-all"
-                      >
-                          <Menu size={28} strokeWidth={2.5} />
-                      </button>
-                  )}
-                  
-                  {/* Mobile Branding */}
-                  <div className="flex items-center gap-1.5">
-                     <span className="font-extrabold text-xl text-slate-900 dark:text-white tracking-tight">Gestor<span className="text-orange-500">PyME</span></span>
-                  </div>
-              </div>
+            {/* MOBILE HEADER */}
+            {showNav && (
+                <div className="h-16 flex md:hidden items-center justify-between px-4 pt-1">
+                
+                <div className="flex items-center gap-3">
+                    {/* Hamburguesa Trigger */}
+                    {showNav && (
+                        <button 
+                            onClick={() => setIsMobileMenuOpen(true)}
+                            className="p-2 -ml-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition-all"
+                        >
+                            <Menu size={28} strokeWidth={2.5} />
+                        </button>
+                    )}
+                    
+                    {/* Mobile Branding */}
+                    <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-xl text-slate-900 dark:text-white tracking-tight">Gestor<span className="text-orange-500">PyME</span></span>
+                    </div>
+                </div>
 
-              {/* Mobile Actions */}
-              <div className="flex items-center gap-2">
-                 <button onClick={toggleTheme} className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-orange-500 transition-colors">
-                    {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-                 </button>
-                 {currentExchangeRate && isLeaderOrDev && (
-                     <button 
-                        onClick={onOpenExchange}
-                        className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full py-1.5 px-3 transition-all active:scale-95"
-                     >
-                        <div className="w-4 h-4 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-500">
-                            <DollarSign size={10} strokeWidth={3} />
-                        </div>
-                        <span className="text-xs font-bold text-slate-700 dark:text-white">1=${parseFloat(currentExchangeRate).toFixed(0)}</span>
-                     </button>
-                 )}
-              </div>
-            </div>
+                {/* Mobile Actions */}
+                <div className="flex items-center gap-2">
+                    <button onClick={toggleTheme} className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-orange-500 transition-colors">
+                        {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                    </button>
+                    {currentExchangeRate && isLeaderOrDev && (
+                        <button 
+                            onClick={onOpenExchange}
+                            className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full py-1.5 px-3 transition-all active:scale-95"
+                        >
+                            <div className="w-4 h-4 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-500">
+                                <DollarSign size={10} strokeWidth={3} />
+                            </div>
+                            <span className="text-xs font-bold text-slate-700 dark:text-white">1=${parseFloat(currentExchangeRate).toFixed(0)}</span>
+                        </button>
+                    )}
+                </div>
+                </div>
+            )}
 
             {/* DESKTOP HEADER */}
-            {!isSetupMode && (
+            {showNav && !isSetupMode && (
                 <div className="hidden md:flex h-20 items-center justify-between px-8 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
                      <div className="flex items-center gap-4">
                         <div>
@@ -400,6 +417,7 @@ export const Layout: React.FC<LayoutProps> = ({
                                 {activeNav === 'payments' && 'Pagos'}
                                 {activeNav === 'settings' && 'Configuración'}
                                 {activeNav === 'dev_panel' && 'Panel Desarrollador'}
+                                {activeNav === 'chat' && 'Mensajería y Compartido'}
                             </h2>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
                                 {userRole === UserRole.DEVELOPER ? 'Acceso Total + Dev' : (isLeaderOrDev ? 'Modo Líder' : 'Modo Asistente')}

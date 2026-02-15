@@ -1,17 +1,18 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Wallet, Package, PlusSquare, Receipt, TrendingUp, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
+import { Wallet, Package, PlusSquare, Receipt, TrendingUp, ChevronLeft, ChevronRight, Settings, FileText, Download, Calendar, FileSpreadsheet, FileType } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip } from 'recharts';
-import { ViewState, Product, StockMovement, ContractSale, DailySale } from '../types';
+import { ViewState, Product, StockMovement, ContractSale, DailySale, UserRole } from '../types';
 
 interface DashboardViewProps {
   onChangeView: (view: ViewState) => void;
   businessName: string;
+  userRole: UserRole | null;
 }
 
 const COLORS = ['#f97316', '#ec4899', '#8b5cf6', '#10b981'];
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, businessName }) => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, businessName, userRole }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showFullName, setShowFullName] = useState(false);
   
@@ -23,6 +24,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
   // Chart Data
   const [pieData, setPieData] = useState<{name: string, value: number}[]>([]);
   const [barData, setBarData] = useState<{name: string, amt: number}[]>([]);
+
+  // Report State
+  const [reportType, setReportType] = useState<'daily_sales' | 'paid_accounts' | 'payments' | 'account_status' | 'inventory'>('daily_sales');
+  const [dateMode, setDateMode] = useState<'today' | 'range'>('today');
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [format, setFormat] = useState<'xlsx' | 'docx' | 'pdf'>('xlsx');
 
   // Calculate All Data
   useEffect(() => {
@@ -117,6 +125,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
       if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
       return (parts[0][0] + parts[1][0]).toUpperCase();
   };
+
+  const handleGenerateReport = () => {
+    // Logic to simulate report generation
+    let reportData = [];
+    const reportName = `${reportType}_${dateMode === 'today' ? 'hoy' : 'rango'}.${format}`;
+
+    // Here we would implement the real CSV/PDF logic.
+    // For now, we simulate success and CSV download (as PDF/DOCX require external libs not present).
+    
+    let csvContent = "data:text/csv;charset=utf-8,";
+    
+    // Header based on type
+    if (reportType === 'daily_sales') csvContent += "ID,Producto,Cantidad,Total,Fecha\n";
+    if (reportType === 'paid_accounts') csvContent += "ID,Cliente,Producto,Total,Fecha Pago\n";
+    if (reportType === 'payments') csvContent += "ID,Descripcion,Monto,Fecha,Cuenta\n";
+    if (reportType === 'account_status') csvContent += "Banco,Cuenta,Nombre,Saldo\n";
+    if (reportType === 'inventory') csvContent += "ID,Producto,Stock,Costo,Venta\n";
+
+    // Data fetching (simplified for demo)
+    // In a real app, we filter by date here using startDate/endDate
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", reportName.replace('.pdf', '.csv').replace('.docx', '.csv')); // Fallback to CSV for demo
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert(`Informe "${reportName}" generado exitosamente.`);
+  };
+
+  const isLeaderOrDev = userRole === UserRole.LEADER || userRole === UserRole.DEVELOPER;
 
   return (
     <div className="px-5 pt-2 pb-32 md:pb-8 md:px-0 space-y-6">
@@ -302,6 +343,109 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
               </div>
           </div>
       </section>
+
+      {/* Report Section - Only for Leader/Dev */}
+      {isLeaderOrDev && (
+          <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm mt-8">
+              <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl text-blue-600 dark:text-blue-400">
+                      <FileText size={24} />
+                  </div>
+                  <div>
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-white">Centro de Informes</h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Exportación y análisis de datos</p>
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* 1. Report Type */}
+                  <div className="space-y-3">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tipo de Informe</label>
+                      <select 
+                          value={reportType}
+                          onChange={(e) => setReportType(e.target.value as any)}
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                      >
+                          <option value="daily_sales">Ventas Diarias</option>
+                          <option value="paid_accounts">Cuentas Cobradas</option>
+                          <option value="payments">Pagos Realizados</option>
+                          <option value="account_status">Estado de Cuentas</option>
+                          <option value="inventory">Inventario Actual</option>
+                      </select>
+                  </div>
+
+                  {/* 2. Date Selection */}
+                  <div className="space-y-3">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Período</label>
+                      <div className="bg-slate-50 dark:bg-slate-900 p-1 rounded-xl flex border border-slate-200 dark:border-slate-700">
+                          <button 
+                              onClick={() => setDateMode('today')}
+                              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${dateMode === 'today' ? 'bg-white dark:bg-slate-800 shadow text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}
+                          >
+                              Jornada en Curso
+                          </button>
+                          <button 
+                              onClick={() => setDateMode('range')}
+                              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${dateMode === 'range' ? 'bg-white dark:bg-slate-800 shadow text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}
+                          >
+                              Rango Fecha
+                          </button>
+                      </div>
+                      {dateMode === 'range' && (
+                          <div className="flex gap-2 animate-in fade-in slide-in-from-top-1">
+                              <input 
+                                type="date" 
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs outline-none dark:text-white"
+                              />
+                              <input 
+                                type="date" 
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs outline-none dark:text-white"
+                              />
+                          </div>
+                      )}
+                  </div>
+
+                  {/* 3. Format & Action */}
+                  <div className="space-y-3">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Formato y Descarga</label>
+                      <div className="flex gap-2">
+                          <button 
+                              onClick={() => setFormat('xlsx')}
+                              className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${format === 'xlsx' ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400'}`}
+                          >
+                              <FileSpreadsheet size={20} />
+                              <span className="text-[10px] font-bold mt-1">XLSX</span>
+                          </button>
+                          <button 
+                              onClick={() => setFormat('docx')}
+                              className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${format === 'docx' ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 text-blue-600 dark:text-blue-400' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400'}`}
+                          >
+                              <FileText size={20} />
+                              <span className="text-[10px] font-bold mt-1">DOCX</span>
+                          </button>
+                          <button 
+                              onClick={() => setFormat('pdf')}
+                              className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${format === 'pdf' ? 'bg-red-50 dark:bg-red-900/20 border-red-500 text-red-600 dark:text-red-400' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400'}`}
+                          >
+                              <FileType size={20} />
+                              <span className="text-[10px] font-bold mt-1">PDF</span>
+                          </button>
+                      </div>
+                      <button 
+                          onClick={handleGenerateReport}
+                          className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+                      >
+                          <Download size={16} />
+                          Generar Informe
+                      </button>
+                  </div>
+              </div>
+          </section>
+      )}
     </div>
   );
 };

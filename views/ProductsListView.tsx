@@ -92,10 +92,6 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
       setEditingProduct(null);
   };
 
-  const handleExport = (format: 'csv' | 'doc' | 'pdf') => {
-      // Export Logic
-  };
-
   return (
     <div className="flex flex-col h-full space-y-6 pb-24">
       {/* Header */}
@@ -104,11 +100,6 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
               <Package className="text-orange-500" />
               Inventario
           </h2>
-          <div className="flex bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-              <button onClick={() => handleExport('csv')} className="px-3 py-2 text-xs font-bold text-emerald-600 dark:text-emerald-500 hover:bg-slate-50 dark:hover:bg-slate-700 border-r border-slate-200 dark:border-slate-700">XLSX</button>
-              <button onClick={() => handleExport('doc')} className="px-3 py-2 text-xs font-bold text-blue-600 dark:text-blue-500 hover:bg-slate-50 dark:hover:bg-slate-700 border-r border-slate-200 dark:border-slate-700">DOCX</button>
-              <button onClick={() => handleExport('pdf')} className="px-3 py-2 text-xs font-bold text-red-600 dark:text-red-500 hover:bg-slate-50 dark:hover:bg-slate-700">PDF</button>
-          </div>
       </div>
 
       {/* Product List */}

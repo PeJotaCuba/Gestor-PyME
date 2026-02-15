@@ -2,10 +2,12 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import * as admin from 'firebase-admin';
 
+// Initialize only if not already done, inside a try block
 if (!admin.apps.length) {
   try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}');
     admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}')),
+      credential: admin.credential.cert(serviceAccount),
       databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`
     });
   } catch (e) {
@@ -13,11 +15,16 @@ if (!admin.apps.length) {
   }
 }
 
-const db = admin.firestore();
-const auth = admin.auth();
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method Not Allowed' });
+
+  // Ensure admin is initialized
+  if (!admin.apps.length) {
+      return res.status(500).json({ success: false, message: 'Error de servidor: Firebase no inicializado. Verifique variables de entorno.' });
+  }
+
+  const db = admin.firestore();
+  const auth = admin.auth();
 
   const { username, password, name, phone, licenseKey, role } = req.body;
 
@@ -27,16 +34,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // 1. Verificar si el usuario ya existe en Auth
-    let userRecord;
     try {
-        userRecord = await auth.getUserByEmail(username);
+        await auth.getUserByEmail(username);
         return res.status(400).json({ success: false, message: 'El correo ya está registrado.' });
     } catch (e) {
         // Usuario no existe, procedemos
     }
 
     // 2. Crear el usuario en Auth
-    userRecord = await auth.createUser({
+    const userRecord = await auth.createUser({
       email: username,
       password: password,
       displayName: name,

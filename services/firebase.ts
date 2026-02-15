@@ -1,134 +1,227 @@
 
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, getDoc, query, where, getDocs, addDoc, orderBy, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { UserRole, CloudUser, Message } from '../types';
 
-const firebaseConfig = {
-  apiKey: (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) || "AIzaSy...", 
-  authDomain: (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) || "tu-proyecto.firebaseapp.com",
-  projectId: (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) || "tu-proyecto",
-  storageBucket: (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) || "tu-proyecto.appspot.com",
-  messagingSenderId: "...",
-  appId: "..."
+// Clave para guardar la "Base de Datos" de usuarios en el navegador
+const DB_USERS_KEY = 'Gestor_Users_DB';
+const DB_CHATS_PREFIX = 'Gestor_Chat_';
+
+// Helpers internos
+const getLocalDB = (): CloudUser[] => {
+    if (typeof window === 'undefined') return [];
+    const data = localStorage.getItem(DB_USERS_KEY);
+    return data ? JSON.parse(data) : [];
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+const saveLocalDB = (users: CloudUser[]) => {
+    localStorage.setItem(DB_USERS_KEY, JSON.stringify(users));
+};
 
 export const CloudService = {
+    // --- AUTENTICACIÓN LOCAL ---
     login: async (email: string, password: string): Promise<CloudUser | null> => {
-        try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            const user = userCredential.user;
-            const userRef = doc(db, "usuarios", user.uid);
-            const userDoc = await getDoc(userRef);
-
-            if (userDoc.exists()) {
-                const data = userDoc.data() as CloudUser;
+        // Simular retardo de red
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const users = getLocalDB();
+        const user = users.find(u => u.username === email && u.password === password);
+        
+        if (user) {
+            // Lógica de Primer Acceso Local
+            if (!user.firstLogin) {
+                const now = new Date();
+                const trialUntil = new Date();
+                trialUntil.setDate(now.getDate() + 7);
                 
-                // Lógica de Primer Acceso
-                if (!data.firstLogin) {
-                    const now = new Date();
-                    const trialUntil = new Date();
-                    trialUntil.setDate(now.getDate() + 7);
-                    
-                    await updateDoc(userRef, {
-                        firstLogin: serverTimestamp(),
-                        trialUntil: trialUntil
-                    });
-                    data.firstLogin = now;
-                    data.trialUntil = trialUntil;
-                }
-
-                const idTokenResult = await user.getIdTokenResult(true);
-                return { 
-                    uid: user.uid, 
-                    ...data,
-                    licenseValidated: idTokenResult.claims.licenseValidated as boolean
-                };
+                user.firstLogin = now.toISOString();
+                user.trialUntil = trialUntil.toISOString();
+                
+                // Actualizar usuario en DB
+                const updatedUsers = users.map(u => u.uid === user.uid ? user : u);
+                saveLocalDB(updatedUsers);
             }
-            return null;
-        } catch (error) {
-            console.error("Login Error:", error);
-            return null;
+            return user;
         }
+        return null;
+    },
+
+    logout: async () => {
+        // No hay sesión real que matar, solo limpieza de estado en App
+        return Promise.resolve();
     },
 
     getUserProfile: async (uid: string): Promise<CloudUser | null> => {
+        const users = getLocalDB();
+        return users.find(u => u.uid === uid) || null;
+    },
+
+    // --- GESTIÓN DE USUARIOS (DEV PANEL) ---
+    createUser: async (user: CloudUser): Promise<{success: boolean, message: string}> => {
         try {
-            const userDoc = await getDoc(doc(db, "usuarios", uid));
-            if (userDoc.exists()) {
-                 const data = userDoc.data() as CloudUser;
-                 const user = auth.currentUser;
-                 let licenseValidated = false;
-                 if (user) {
-                     const token = await user.getIdTokenResult();
-                     licenseValidated = token.claims.licenseValidated as boolean;
-                 }
-                 return { uid, ...data, licenseValidated };
+            const users = getLocalDB();
+            
+            if (users.some(u => u.username === user.username)) {
+                return { success: false, message: 'El usuario ya existe.' };
             }
-            return null;
-        } catch (error) {
-            console.error("Get Profile Error:", error);
-            return null;
+
+            const newUser = {
+                ...user,
+                uid: `local_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                firstLogin: null, // Se activará al primer login
+                licenseValidated: false
+            };
+
+            users.push(newUser);
+            saveLocalDB(users);
+            
+            return { success: true, message: 'Usuario creado localmente.' };
+        } catch (e) {
+            return { success: false, message: 'Error al guardar en almacenamiento local.' };
         }
     },
 
+    getLeaders: async (): Promise<CloudUser[]> => {
+        const users = getLocalDB();
+        return users.filter(u => u.role === UserRole.LEADER);
+    },
+
     activateLicense: async (uid: string, key: string): Promise<boolean> => {
+        const users = getLocalDB();
+        const userIndex = users.findIndex(u => u.uid === uid);
+        
+        if (userIndex !== -1) {
+            if (users[userIndex].licenseKey === key) {
+                users[userIndex].licenseValidated = true;
+                saveLocalDB(users);
+                return true;
+            }
+        }
+        return false;
+    },
+
+    // --- IMPORTACIÓN / EXPORTACIÓN ---
+    exportDatabase: () => {
+        const users = getLocalDB();
+        const dataStr = JSON.stringify(users, null, 2);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `usuariopyme_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    },
+
+    importDatabase: async (jsonContent: string): Promise<boolean> => {
         try {
-            const response = await fetch('/api/activate-license', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ uid, licenseKey: key })
-            });
-            const result = await response.json();
-            return result.success;
-        } catch (error) {
+            const parsed = JSON.parse(jsonContent);
+            if (Array.isArray(parsed)) {
+                saveLocalDB(parsed);
+                return true;
+            }
+            return false;
+        } catch (e) {
             return false;
         }
     },
 
-    // Obtener todos los líderes para vinculación manual en el panel dev
-    getLeaders: async (): Promise<CloudUser[]> => {
-        const q = query(collection(db, "usuarios"), where("role", "==", UserRole.LEADER));
-        const snap = await getDocs(q);
-        return snap.docs.map(d => ({ uid: d.id, ...d.data() } as CloudUser));
-    },
+    parseTxtAndImport: async (txtContent: string): Promise<{added: number, errors: number}> => {
+        const blocks = txtContent.split('_________________________________');
+        const users = getLocalDB();
+        let addedCount = 0;
+        let errorCount = 0;
 
-    createUser: async (user: CloudUser): Promise<{success: boolean, message: string}> => {
-        const response = await fetch('/api/create-user', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(user)
+        blocks.forEach(block => {
+            const lines = block.split('\n').map(l => l.trim()).filter(l => l);
+            if (lines.length < 3) return; // Bloque vacío o incompleto
+
+            const getVal = (key: string) => {
+                const line = lines.find(l => l.startsWith(key));
+                return line ? line.split(':')[1].trim() : '';
+            };
+
+            const city = getVal('Ciudad de Origen');
+            const name = getVal('Nombre Completo');
+            const email = getVal('Email');
+            const pass = getVal('Contraseña');
+            const phone = getVal('Teléfono');
+
+            if (name && email && pass) {
+                // Verificar duplicados
+                if (!users.some(u => u.username === email)) {
+                    // Generar Licencia si es Líder (Si tiene Ciudad)
+                    let licenseKey = '';
+                    let role = UserRole.ASSISTANT; // Default
+                    
+                    if (city) {
+                        role = UserRole.LEADER;
+                        const cityCode = city.substring(0, 3).toUpperCase().padEnd(3, 'X');
+                        const randomID = Math.floor(1000 + Math.random() * 9000);
+                        licenseKey = `GP-${cityCode}-${new Date().getFullYear()}-${randomID}`;
+                    }
+
+                    const newUser: CloudUser = {
+                        uid: `imp_${Date.now()}_${addedCount}`,
+                        username: email,
+                        password: pass,
+                        name: name,
+                        phone: phone || '',
+                        role: role,
+                        licenseKey: licenseKey, // Si es asistente, quedará vacía hasta vincular manual, o asumimos lógica
+                        firstLogin: null,
+                        licenseValidated: false
+                    };
+                    
+                    users.push(newUser);
+                    addedCount++;
+                } else {
+                    errorCount++; // Duplicado
+                }
+            }
         });
-        return await response.json();
+
+        saveLocalDB(users);
+        return { added: addedCount, errors: errorCount };
     },
 
+    // --- CHAT LOCAL (Simulado) ---
     sendMessage: async (licenseKey: string, message: Message) => {
-        const chatRef = collection(db, "chats", licenseKey, "mensajes");
-        await addDoc(chatRef, { ...message, timestamp: serverTimestamp() });
+        const key = `${DB_CHATS_PREFIX}${licenseKey}`;
+        const existing = localStorage.getItem(key);
+        const messages: Message[] = existing ? JSON.parse(existing) : [];
+        
+        const newMessage = {
+            ...message,
+            timestamp: new Date().toISOString()
+        };
+        messages.push(newMessage);
+        localStorage.setItem(key, JSON.stringify(messages));
+        
+        // Disparar evento de storage para actualizar otras pestañas si están abiertas
+        window.dispatchEvent(new Event('storage'));
     },
 
     subscribeToMessages: (licenseKey: string, callback: (messages: Message[]) => void) => {
-        const q = query(collection(db, "chats", licenseKey, "mensajes"), orderBy("timestamp", "asc"));
-        return onSnapshot(q, (snapshot) => {
-            const msgs: Message[] = [];
-            snapshot.forEach((doc) => msgs.push({ id: doc.id, ...doc.data() } as Message));
-            callback(msgs);
-        });
+        const key = `${DB_CHATS_PREFIX}${licenseKey}`;
+        
+        const load = () => {
+            const existing = localStorage.getItem(key);
+            callback(existing ? JSON.parse(existing) : []);
+        };
+
+        load(); // Carga inicial
+
+        // Escuchar cambios (esto funciona entre pestañas, o podemos usar un intervalo para la misma pestaña si no hay reactividad real de storage event en el mismo documento)
+        const interval = setInterval(load, 1000); 
+
+        return () => clearInterval(interval);
     },
 
     uploadFile: async (licenseKey: string, file: File): Promise<string> => {
-        const fileRef = ref(storage, `compartidos/${licenseKey}/${Date.now()}_${file.name}`);
-        await uploadBytes(fileRef, file);
-        return await getDownloadURL(fileRef);
-    },
-    
-    logout: async () => {
-        await signOut(auth);
+        // Simular subida devolviendo un objeto URL local (solo funciona en la sesión actual del navegador)
+        return URL.createObjectURL(file);
     }
 };
+
+// Mock Auth export para compatibilidad con imports existentes, aunque no se use
+export const auth = { currentUser: null }; 

@@ -15,9 +15,8 @@ import { AddExpenseView } from './views/AddExpenseView';
 import { TallerView } from './views/TallerView';
 import { PaymentsView } from './views/PaymentsView';
 import { ChatView } from './views/ChatView';
-import { DollarSign, RefreshCw, Globe, CheckCircle, X, AlertTriangle, Download, ArrowRight, ShieldCheck, Key, Lock } from 'lucide-react';
-import { CloudService, auth } from './services/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { RefreshCw, Key, Lock, ShieldCheck } from 'lucide-react';
+import { CloudService } from './services/firebase'; // Ahora es servicio local
 
 const App = () => {
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.AUTH);
@@ -31,29 +30,11 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Exchange Rate State
-  const [showExchangeModal, setShowExchangeModal] = useState(false);
-  const [exchangeRate, setExchangeRate] = useState(''); 
-  const [bccRate, setBccRate] = useState('');
-  const [isManualRate, setIsManualRate] = useState(false);
-  const [isLoadingRate, setIsLoadingRate] = useState(false);
-  const [isRateLinked, setIsRateLinked] = useState(false);
+  const [currentExchangeRate, setCurrentExchangeRate] = useState('');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            const profile = await CloudService.getUserProfile(user.uid);
-            if (profile) {
-                handleAuthSuccess(profile.role, profile.licenseKey, false, profile);
-            } else {
-                await CloudService.logout();
-                setCurrentView(ViewState.AUTH);
-            }
-        } else {
-            setCurrentView(ViewState.AUTH);
-        }
-        setIsLoading(false);
-    });
-    return () => unsubscribe();
+    // Simular carga inicial rápida (ya no hay handshake con Firebase)
+    setTimeout(() => setIsLoading(false), 500);
   }, []);
 
   useEffect(() => {
@@ -66,7 +47,7 @@ const App = () => {
     if (currentUser?.licenseValidated) return;
     
     if (currentUser?.trialUntil) {
-        const until = currentUser.trialUntil.toDate ? currentUser.trialUntil.toDate() : new Date(currentUser.trialUntil);
+        const until = new Date(currentUser.trialUntil);
         if (new Date() > until) {
             setCurrentView(ViewState.TRIAL_EXPIRED);
         }
@@ -79,9 +60,11 @@ const App = () => {
       const success = await CloudService.activateLicense(currentUser.uid, licenseInput);
       if (success) {
           alert("¡Licencia validada con éxito! Reiniciando...");
-          window.location.reload();
+          // Actualizar estado local del usuario
+          setCurrentUser({ ...currentUser, licenseValidated: true });
+          checkAppInitialization(currentUser.role);
       } else {
-          alert("La clave de licencia no es válida o no corresponde a tu equipo.");
+          alert("La clave de licencia no es válida o no corresponde a este usuario.");
       }
       setIsActivating(false);
   };
@@ -101,6 +84,7 @@ const App = () => {
   const checkAppInitialization = (role: UserRole) => {
     let foundConfig = false;
     let configName = '';
+    // Buscar configuración en localStorage
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith('Gestor_') && key.endsWith('_config')) {
@@ -111,6 +95,13 @@ const App = () => {
 
     if (foundConfig) {
         setBusinessName(configName);
+        // Cargar tasa de cambio si existe
+        const rateKey = `Gestor_${configName.replace(/\s+/g, '_')}_exchangeRate`;
+        const rateData = localStorage.getItem(rateKey);
+        if (rateData) {
+            const parsed = JSON.parse(rateData);
+            setCurrentExchangeRate(parsed.rate);
+        }
         setCurrentView(role === UserRole.ASSISTANT ? ViewState.SALES : ViewState.DASHBOARD);
     } else {
         setCurrentView(ViewState.SETUP);
@@ -141,7 +132,7 @@ const App = () => {
                     <Lock size={40} />
                 </div>
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">Período de Prueba Expirado</h2>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mb-8 max-w-xs leading-relaxed">Tus 7 días han terminado. Ingresa tu clave de licencia para recuperar el acceso a tus datos y equipo.</p>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mb-8 max-w-xs leading-relaxed">Tus 7 días han terminado. Ingresa tu clave de licencia para recuperar el acceso.</p>
                 <div className="w-full max-w-sm space-y-4">
                     <div className="relative">
                         <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -205,6 +196,8 @@ const App = () => {
         businessName={businessName}
         userRole={userRole || UserRole.LEADER}
         onLogout={handleLogout}
+        currentExchangeRate={currentExchangeRate}
+        onOpenExchange={() => { /* Lógica de tasa */ }}
     >
       {renderView()}
     </Layout>

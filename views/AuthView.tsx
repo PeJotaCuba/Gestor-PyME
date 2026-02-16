@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { ShieldCheck, User, Users, Key, Terminal, ArrowRight, AlertCircle, LogIn, Lock, ChevronLeft, Cloud } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, User, Users, Key, Terminal, ArrowRight, AlertCircle, LogIn, Lock, ChevronLeft, Cloud, Eye, EyeOff, MessageCircle, Check } from 'lucide-react';
 import { UserRole, CloudUser } from '../types';
 import { CloudService } from '../services/firebase';
 
@@ -10,18 +10,37 @@ interface AuthViewProps {
 }
 
 export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => {
-  const [step, setStep] = useState<'ROLE_SELECT' | 'LICENSE' | 'LOGIN' | 'DEV_LOGIN'>('ROLE_SELECT');
+  const [step, setStep] = useState<'ROLE_SELECT' | 'LICENSE' | 'LOGIN' | 'DEV_LOGIN' | 'DEV_VERIFY'>('ROLE_SELECT');
   const [licenseKey, setLicenseKey] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   
   // Login Fields
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
   // Dev Login
   const [devUser, setDevUser] = useState('');
   const [devPass, setDevPass] = useState('');
+  const [showDevPass, setShowDevPass] = useState(false);
+  
+  // Dev Verification
+  const [verificationCode, setVerificationCode] = useState('');
+  const [authCodeInput, setAuthCodeInput] = useState('');
+
+  // Generate 4 numbers and 2 letters intercalated code (N-L-N-L-N-N)
+  const generateDevCode = () => {
+      const n = () => Math.floor(Math.random() * 10).toString();
+      const l = () => String.fromCharCode(65 + Math.floor(Math.random() * 26)); // A-Z
+      return `${n()}${l()}${n()}${l()}${n()}${n()}`;
+  };
+
+  useEffect(() => {
+      if (step === 'DEV_VERIFY') {
+          setVerificationCode(generateDevCode());
+      }
+  }, [step]);
 
   const handleRoleSelect = (role: UserRole) => {
       setSelectedRole(role);
@@ -39,33 +58,116 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
       }
       setIsLoading(true);
       
-      const user = await CloudService.login(username, password);
+      const response = await CloudService.login(username, password);
       
-      if (user) {
-          console.log("Logged in from Cloud:", user);
+      if (response.user) {
+          const user = response.user;
+          console.log("Logged in:", user);
           onSuccess(user.role, user.licenseKey, user.role === UserRole.LEADER, user); 
       } else {
-          alert("Credenciales incorrectas. Verifica tu conexión.");
+          alert(response.error || "Credenciales incorrectas.");
       }
       setIsLoading(false);
   };
 
-  const handleDevLogin = () => {
-      if (devUser === 'des26' && devPass === 'Gpymedes*26') {
-          onDevLogin();
+  const handleDevLogin = async () => {
+      // Intento de login como Dev
+      const response = await CloudService.login(devUser, devPass);
+      
+      if (response.user) {
+          onDevLogin(); // Login exitoso directo (dispositivo conocido)
+      } else if (response.requireDevVerify) {
+          setStep('DEV_VERIFY'); // Dispositivo nuevo -> Verificar
       } else {
-          alert("Credenciales incorrectas");
+          alert(response.error || "Credenciales incorrectas");
       }
   };
+
+  const handleVerifyDevCode = async () => {
+      // Simplificado para la demo: La respuesta correcta es el código invertido
+      const expected = verificationCode.split('').reverse().join('');
+      
+      if (authCodeInput.toUpperCase() === expected) {
+          const success = await CloudService.registerDevDevice(devUser);
+          if (success) {
+              onDevLogin();
+          } else {
+              alert("Error al registrar dispositivo.");
+          }
+      } else {
+          alert("Código de autorización incorrecto.");
+      }
+  };
+
+  if (step === 'DEV_VERIFY') {
+      return (
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 transition-colors">
+            <div className="max-w-sm w-full bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700">
+                <div className="text-center mb-6">
+                    <img 
+                        src="/icons/android/android-launchericon-72-72.png" 
+                        alt="Security" 
+                        className="w-16 h-16 mx-auto mb-4 rounded-xl shadow-lg shadow-orange-500/20" 
+                    />
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Verificación de Seguridad</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Dispositivo no reconocido. Verifica tu identidad.</p>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="bg-slate-100 dark:bg-slate-900 p-4 rounded-xl text-center">
+                        <p className="text-[10px] text-slate-400 uppercase font-bold mb-2">Tu Código de Seguridad</p>
+                        <p className="text-3xl font-mono font-black text-slate-800 dark:text-white tracking-widest">{verificationCode}</p>
+                    </div>
+
+                    <a 
+                        href={`https://wa.me/5354413935?text=Solicito autorización para dispositivo Dev. Código: ${verificationCode}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20"
+                    >
+                        <MessageCircle size={18} />
+                        Enviar por WhatsApp
+                    </a>
+
+                    <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                        <label className="text-xs font-bold text-slate-500 mb-2 block">Código de Autorización</label>
+                        <div className="flex gap-2">
+                            <input 
+                                type="text" 
+                                value={authCodeInput}
+                                onChange={(e) => setAuthCodeInput(e.target.value)}
+                                placeholder="Recibido del Admin"
+                                className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white outline-none focus:border-orange-500"
+                            />
+                            <button 
+                                onClick={handleVerifyDevCode}
+                                className="bg-orange-500 text-white p-3 rounded-xl hover:bg-orange-600"
+                            >
+                                <Check size={20} />
+                            </button>
+                        </div>
+                        <p className="text-[9px] text-slate-400 mt-2 text-center italic">Para pruebas: Ingrese el código al revés.</p>
+                    </div>
+                    
+                    <button onClick={() => setStep('DEV_LOGIN')} className="w-full text-slate-400 text-xs font-bold hover:text-slate-600">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+      );
+  }
 
   if (step === 'DEV_LOGIN') {
       return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 transition-colors">
             <div className="max-w-sm w-full bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Terminal size={32} className="text-orange-500" />
-                    </div>
+                     <img 
+                        src="/icons/android/android-launchericon-96-96.png" 
+                        alt="Dev Mode" 
+                        className="w-20 h-20 mx-auto mb-4 rounded-2xl shadow-lg shadow-orange-500/20" 
+                    />
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Modo Desarrollador</h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Acceso directo sin licencia.</p>
                 </div>
@@ -77,13 +179,21 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
                         onChange={(e) => setDevUser(e.target.value)}
                         className="w-full p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors placeholder-slate-400"
                     />
-                    <input 
-                        type="password" 
-                        placeholder="Contraseña"
-                        value={devPass}
-                        onChange={(e) => setDevPass(e.target.value)}
-                        className="w-full p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors placeholder-slate-400"
-                    />
+                    <div className="relative">
+                        <input 
+                            type={showDevPass ? "text" : "password"} 
+                            placeholder="Contraseña"
+                            value={devPass}
+                            onChange={(e) => setDevPass(e.target.value)}
+                            className="w-full p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors placeholder-slate-400"
+                        />
+                        <button 
+                            onClick={() => setShowDevPass(!showDevPass)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                        >
+                            {showDevPass ? <EyeOff size={18}/> : <Eye size={18}/>}
+                        </button>
+                    </div>
                     <button onClick={handleDevLogin} className="w-full py-4 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 shadow-lg shadow-orange-500/20">
                         Ingresar
                     </button>
@@ -101,6 +211,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
           <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 transition-colors">
               <div className="max-w-md w-full">
                   <div className="text-center mb-10">
+                      <img 
+                        src="/icons/android/android-launchericon-144-144.png" 
+                        alt="Logo" 
+                        className="w-24 h-24 mx-auto mb-4 rounded-3xl shadow-2xl shadow-orange-500/20"
+                      />
                       <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white mb-2 tracking-tighter">Gestor<span className="text-orange-500">PyME</span></h1>
                       <p className="text-slate-500 dark:text-slate-400">Selecciona tu modo de acceso</p>
                   </div>
@@ -150,9 +265,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
                   <button onClick={() => setStep('ROLE_SELECT')} className="text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1 text-sm font-bold mb-4">
                       <ChevronLeft size={16} /> Atrás
                   </button>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-3 mb-1">
+                      <img src="/icons/android/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
                       <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Iniciar Sesión</h2>
-                      <LogIn size={20} className="text-orange-500" />
                   </div>
                   <p className="text-slate-500 dark:text-slate-400 text-sm">
                       Accede a tu cuenta de {selectedRole === UserRole.LEADER ? 'Líder' : 'Asistente'}.
@@ -164,16 +279,24 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
                       type="text" 
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      placeholder="Usuario"
+                      placeholder="Usuario o Teléfono"
                       className="w-full p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 placeholder-slate-400"
                   />
-                  <input 
-                      type="password" 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Contraseña"
-                      className="w-full p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 placeholder-slate-400"
-                  />
+                  <div className="relative">
+                      <input 
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Contraseña"
+                          className="w-full p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 placeholder-slate-400"
+                      />
+                      <button 
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                        >
+                            {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+                        </button>
+                  </div>
                   <button 
                     onClick={handleGeneralLogin}
                     disabled={isLoading}

@@ -30,10 +30,12 @@ export interface CloudUser {
     licenseKey: string;
     role: UserRole;
     name: string;
+    businessName?: string; // New field
     firstLogin?: any;
     trialUntil?: any;
     linkedLeaderId?: string;
     licenseValidated?: boolean;
+    activeSessions?: string[]; // Array of deviceIds
 }
 
 export interface BusinessProfile {

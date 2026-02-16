@@ -4,48 +4,155 @@ import { UserRole, CloudUser, Message } from '../types';
 // Clave para guardar la "Base de Datos" de usuarios en el navegador
 const DB_USERS_KEY = 'Gestor_Users_DB';
 const DB_CHATS_PREFIX = 'Gestor_Chat_';
+const SESSION_KEY = 'Gestor_Current_Session';
+const DEVICE_ID_KEY = 'Gestor_Device_ID';
 
 // Helpers internos
+const safeJSONParse = <T>(key: string, fallback: T): T => {
+    if (typeof window === 'undefined') return fallback;
+    try {
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : fallback;
+    } catch (error) {
+        console.error(`Error parsing ${key}:`, error);
+        return fallback;
+    }
+};
+
 const getLocalDB = (): CloudUser[] => {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(DB_USERS_KEY);
-    return data ? JSON.parse(data) : [];
+    return safeJSONParse<CloudUser[]>(DB_USERS_KEY, []);
 };
 
 const saveLocalDB = (users: CloudUser[]) => {
-    localStorage.setItem(DB_USERS_KEY, JSON.stringify(users));
+    try {
+        localStorage.setItem(DB_USERS_KEY, JSON.stringify(users));
+    } catch (e) {
+        console.error("Error saving to localStorage", e);
+    }
+};
+
+// Generar o recuperar ID único del dispositivo
+const getDeviceId = (): string => {
+    let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+    if (!deviceId) {
+        deviceId = 'dev_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+        localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    }
+    return deviceId;
 };
 
 export const CloudService = {
     // --- AUTENTICACIÓN LOCAL ---
-    login: async (email: string, password: string): Promise<CloudUser | null> => {
-        // Simular retardo de red
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const users = getLocalDB();
-        const user = users.find(u => u.username === email && u.password === password);
-        
-        if (user) {
-            // Lógica de Primer Acceso Local
-            if (!user.firstLogin) {
-                const now = new Date();
-                const trialUntil = new Date();
-                trialUntil.setDate(now.getDate() + 7);
-                
-                user.firstLogin = now.toISOString();
-                user.trialUntil = trialUntil.toISOString();
-                
-                // Actualizar usuario en DB
-                const updatedUsers = users.map(u => u.uid === user.uid ? user : u);
-                saveLocalDB(updatedUsers);
-            }
-            return user;
+    
+    // Recuperar sesión persistente
+    getSession: async (): Promise<CloudUser | null> => {
+        const session = safeJSONParse<CloudUser | null>(SESSION_KEY, null);
+        if (session) {
+            // Verificar que el usuario aún existe en la DB y actualizar datos
+            const users = getLocalDB();
+            const freshUser = users.find(u => u.uid === session.uid);
+            return freshUser || null;
         }
         return null;
     },
 
+    login: async (identifier: string, password: string): Promise<{user: CloudUser | null, error?: string, requireDevVerify?: boolean}> => {
+        // Simular retardo de red
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const users = getLocalDB();
+        const deviceId = getDeviceId();
+        
+        // Buscar por Nombre de Usuario O Teléfono
+        const userIndex = users.findIndex(u => 
+            (u.username.toLowerCase() === identifier.toLowerCase() || u.phone === identifier) && 
+            u.password === password
+        );
+        
+        const user = users[userIndex];
+        
+        if (user) {
+            // VERIFICACIÓN DE LICENCIA DEL LÍDER (Si es asistente)
+            if (user.role === UserRole.ASSISTANT && user.linkedLeaderId) {
+                const leader = users.find(u => u.uid === user.linkedLeaderId);
+                if (leader) {
+                    if (!leader.licenseValidated && leader.trialUntil) {
+                        const now = new Date();
+                        const trialEnd = new Date(leader.trialUntil);
+                        if (now > trialEnd) {
+                            return { user: null, error: "La licencia del Líder ha expirado. El Asistente no puede acceder." };
+                        }
+                    }
+                } else {
+                    return { user: null, error: "El Líder asociado a esta cuenta no existe." };
+                }
+            }
+
+            // GESTIÓN DE DISPOSITIVOS Y SESIONES
+            const sessions = user.activeSessions || [];
+            const isKnownDevice = sessions.includes(deviceId);
+
+            // Reglas de límites de dispositivos
+            if (!isKnownDevice) {
+                if (user.role === UserRole.LEADER && sessions.length >= 2) {
+                    return { user: null, error: "Has alcanzado el límite de 2 dispositivos para cuenta Líder." };
+                }
+                if (user.role === UserRole.ASSISTANT && sessions.length >= 1) {
+                    return { user: null, error: "Has alcanzado el límite de 1 dispositivo para cuenta Asistente." };
+                }
+                
+                // Si es Desarrollador en dispositivo nuevo -> Requiere verificación
+                if (user.role === UserRole.DEVELOPER) {
+                    return { user: null, requireDevVerify: true }; // Trigger UI flow
+                }
+
+                // Registrar nuevo dispositivo si pasa las reglas
+                users[userIndex].activeSessions = [...sessions, deviceId];
+            }
+
+            // Lógica de Primer Acceso Local (Para Líderes)
+            if (user.role === UserRole.LEADER && !user.firstLogin) {
+                const now = new Date();
+                const trialUntil = new Date();
+                trialUntil.setDate(now.getDate() + 7);
+                
+                users[userIndex].firstLogin = now.toISOString();
+                users[userIndex].trialUntil = trialUntil.toISOString();
+            }
+
+            // Guardar cambios en DB
+            saveLocalDB(users);
+            
+            // Iniciar Sesión Persistente
+            const finalUser = users[userIndex];
+            localStorage.setItem(SESSION_KEY, JSON.stringify(finalUser));
+
+            return { user: finalUser, error: undefined };
+        }
+        return { user: null, error: "Credenciales incorrectas." };
+    },
+
+    // Función especial para confirmar dispositivo Dev
+    registerDevDevice: async (identifier: string): Promise<boolean> => {
+        const users = getLocalDB();
+        const deviceId = getDeviceId();
+        const index = users.findIndex(u => u.username === identifier || u.phone === identifier);
+        
+        if (index !== -1 && users[index].role === UserRole.DEVELOPER) {
+            const sessions = users[index].activeSessions || [];
+            if (!sessions.includes(deviceId)) {
+                users[index].activeSessions = [...sessions, deviceId];
+                saveLocalDB(users);
+                // Auto login after verify
+                localStorage.setItem(SESSION_KEY, JSON.stringify(users[index]));
+                return true;
+            }
+        }
+        return false;
+    },
+
     logout: async () => {
-        // No hay sesión real que matar, solo limpieza de estado en App
+        localStorage.removeItem(SESSION_KEY);
         return Promise.resolve();
     },
 
@@ -55,33 +162,77 @@ export const CloudService = {
     },
 
     // --- GESTIÓN DE USUARIOS (DEV PANEL) ---
-    createUser: async (user: CloudUser): Promise<{success: boolean, message: string}> => {
+    createUser: async (user: CloudUser): Promise<{success: boolean, message: string, user?: CloudUser}> => {
         try {
             const users = getLocalDB();
             
-            if (users.some(u => u.username === user.username)) {
-                return { success: false, message: 'El usuario ya existe.' };
+            // Verificar duplicados por username
+            if (users.some(u => u.username.toLowerCase() === user.username.toLowerCase())) {
+                return { success: false, message: `El usuario "${user.username}" ya existe.` };
             }
 
-            const newUser = {
+            const newUser: CloudUser = {
                 ...user,
-                uid: `local_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                uid: `local_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
                 firstLogin: null, // Se activará al primer login
-                licenseValidated: false
+                licenseValidated: false,
+                activeSessions: [] // Init sessions
             };
 
             users.push(newUser);
             saveLocalDB(users);
             
-            return { success: true, message: 'Usuario creado localmente.' };
+            return { success: true, message: 'Usuario creado localmente.', user: newUser };
         } catch (e) {
             return { success: false, message: 'Error al guardar en almacenamiento local.' };
         }
     },
 
+    updateUser: async (uid: string, data: Partial<CloudUser>): Promise<{success: boolean, message: string}> => {
+        try {
+            const users = getLocalDB();
+            const index = users.findIndex(u => u.uid === uid);
+            if (index === -1) return { success: false, message: 'Usuario no encontrado' };
+
+            // Verificar si el nuevo username ya existe (si se está cambiando)
+            if (data.username && data.username !== users[index].username) {
+                if (users.some(u => u.username.toLowerCase() === data.username?.toLowerCase() && u.uid !== uid)) {
+                     return { success: false, message: 'El nombre de usuario ya está en uso.' };
+                }
+            }
+
+            users[index] = { ...users[index], ...data };
+            saveLocalDB(users);
+            return { success: true, message: 'Usuario actualizado.' };
+        } catch (e) {
+            return { success: false, message: 'Error al actualizar.' };
+        }
+    },
+
+    deleteUser: async (uid: string): Promise<{success: boolean, message: string}> => {
+        try {
+            let users = getLocalDB();
+            // Si es líder, eliminar también sus asistentes vinculados (opcional, pero limpio)
+            const userToDelete = users.find(u => u.uid === uid);
+            
+            users = users.filter(u => u.uid !== uid);
+            
+            // Si eliminamos un líder, eliminamos sus asistentes
+            if (userToDelete?.role === UserRole.LEADER) {
+                users = users.filter(u => u.linkedLeaderId !== uid);
+            }
+
+            saveLocalDB(users);
+            return { success: true, message: 'Usuario eliminado.' };
+        } catch (e) {
+            return { success: false, message: 'Error al eliminar.' };
+        }
+    },
+
     getLeaders: async (): Promise<CloudUser[]> => {
         const users = getLocalDB();
-        return users.filter(u => u.role === UserRole.LEADER);
+        // Devolver TODOS los usuarios para gestión, no solo líderes
+        return users; 
     },
 
     activateLicense: async (uid: string, key: string): Promise<boolean> => {
@@ -142,13 +293,14 @@ export const CloudService = {
 
             const city = getVal('Ciudad de Origen');
             const name = getVal('Nombre Completo');
-            const email = getVal('Email');
+            // Usamos campo Email del TXT como Usuario
+            const email = getVal('Email') || getVal('Usuario'); 
             const pass = getVal('Contraseña');
             const phone = getVal('Teléfono');
 
             if (name && email && pass) {
                 // Verificar duplicados
-                if (!users.some(u => u.username === email)) {
+                if (!users.some(u => u.username.toLowerCase() === email.toLowerCase())) {
                     // Generar Licencia si es Líder (Si tiene Ciudad)
                     let licenseKey = '';
                     let role = UserRole.ASSISTANT; // Default
@@ -167,9 +319,10 @@ export const CloudService = {
                         name: name,
                         phone: phone || '',
                         role: role,
-                        licenseKey: licenseKey, // Si es asistente, quedará vacía hasta vincular manual, o asumimos lógica
+                        licenseKey: licenseKey, 
                         firstLogin: null,
-                        licenseValidated: false
+                        licenseValidated: false,
+                        activeSessions: []
                     };
                     
                     users.push(newUser);
@@ -197,7 +350,6 @@ export const CloudService = {
         messages.push(newMessage);
         localStorage.setItem(key, JSON.stringify(messages));
         
-        // Disparar evento de storage para actualizar otras pestañas si están abiertas
         window.dispatchEvent(new Event('storage'));
     },
 
@@ -206,22 +358,21 @@ export const CloudService = {
         
         const load = () => {
             const existing = localStorage.getItem(key);
-            callback(existing ? JSON.parse(existing) : []);
+            try {
+                callback(existing ? JSON.parse(existing) : []);
+            } catch (e) {
+                callback([]);
+            }
         };
 
-        load(); // Carga inicial
-
-        // Escuchar cambios (esto funciona entre pestañas, o podemos usar un intervalo para la misma pestaña si no hay reactividad real de storage event en el mismo documento)
+        load(); 
         const interval = setInterval(load, 1000); 
-
         return () => clearInterval(interval);
     },
 
     uploadFile: async (licenseKey: string, file: File): Promise<string> => {
-        // Simular subida devolviendo un objeto URL local (solo funciona en la sesión actual del navegador)
         return URL.createObjectURL(file);
     }
 };
 
-// Mock Auth export para compatibilidad con imports existentes, aunque no se use
 export const auth = { currentUser: null }; 

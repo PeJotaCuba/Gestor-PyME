@@ -32,10 +32,71 @@ const App = () => {
   // Exchange Rate State
   const [currentExchangeRate, setCurrentExchangeRate] = useState('');
 
+  // History Stack for Back Button
+  const [historyStack, setHistoryStack] = useState<ViewState[]>([]);
+
   useEffect(() => {
-    // Simular carga inicial rápida (ya no hay handshake con Firebase)
-    setTimeout(() => setIsLoading(false), 500);
+    // Attempt to restore session from local storage
+    const restoreSession = async () => {
+        const user = await CloudService.getSession();
+        if (user) {
+            setCurrentUser(user);
+            setUserRole(user.role);
+            setLicenseKey(user.licenseKey);
+            checkAppInitialization(user.role);
+        }
+        setIsLoading(false);
+    };
+    restoreSession();
   }, []);
+
+  // Back Button Handler (Hardware & Browser)
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      // If there is history in our custom stack, use it
+      if (historyStack.length > 0) {
+        const previousView = historyStack[historyStack.length - 1];
+        // Remove the last item from stack state (without adding current to it)
+        setHistoryStack(prev => prev.slice(0, -1));
+        // Set view directly without pushing to stack again
+        setCurrentView(previousView);
+        // Map ViewState back to ActiveNav for sidebar consistency
+        updateActiveNavFromView(previousView);
+      } else {
+         // If no history, likely at root or initial state. 
+         // If we are logged in but not on dashboard, go dashboard.
+         if (currentUser && currentView !== ViewState.DASHBOARD) {
+             setCurrentView(ViewState.DASHBOARD);
+         }
+      }
+    };
+
+    // Note: Do not pushState here, it causes infinite history loops/errors
+    window.addEventListener('popstate', handlePopState);
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [historyStack, currentView, currentUser]);
+
+  // Helper to sync Sidebar active state with View
+  const updateActiveNavFromView = (view: ViewState) => {
+      if (view === ViewState.DASHBOARD) setActiveNav('home');
+      else if (view === ViewState.SALES) setActiveNav('sales');
+      else if (view === ViewState.PRODUCTS) setActiveNav('products');
+      else if (view === ViewState.CURRENT_ACCOUNT) setActiveNav('accounts');
+      else if (view === ViewState.WORKSHOP) setActiveNav('workshop');
+      else if (view === ViewState.PAYMENTS) setActiveNav('payments');
+      else if (view === ViewState.DEV_PANEL) setActiveNav('dev_panel');
+      else if (view === ViewState.CHAT) setActiveNav('chat');
+  };
+
+  const navigateTo = (newView: ViewState) => {
+      // Push current view to history before changing
+      setHistoryStack(prev => [...prev, currentView]);
+      setCurrentView(newView);
+      // Manually push state when navigating intentionally
+      window.history.pushState(null, '', window.location.pathname);
+      updateActiveNavFromView(newView);
+  };
 
   useEffect(() => {
     if (currentUser && currentView !== ViewState.AUTH && currentView !== ViewState.DEV_PANEL) {
@@ -99,12 +160,20 @@ const App = () => {
         const rateKey = `Gestor_${configName.replace(/\s+/g, '_')}_exchangeRate`;
         const rateData = localStorage.getItem(rateKey);
         if (rateData) {
-            const parsed = JSON.parse(rateData);
-            setCurrentExchangeRate(parsed.rate);
+            try {
+                const parsed = JSON.parse(rateData);
+                setCurrentExchangeRate(parsed.rate);
+            } catch (e) {
+                console.warn("Error loading exchange rate");
+            }
         }
         setCurrentView(role === UserRole.ASSISTANT ? ViewState.SALES : ViewState.DASHBOARD);
     } else {
-        setCurrentView(ViewState.SETUP);
+        if (role === UserRole.DEVELOPER) {
+            setCurrentView(ViewState.DEV_PANEL);
+        } else {
+            setCurrentView(ViewState.SETUP);
+        }
     }
   };
 
@@ -114,6 +183,7 @@ const App = () => {
       setLicenseKey('');
       setCurrentUser(null);
       setCurrentView(ViewState.AUTH);
+      setHistoryStack([]);
   };
 
   if (isLoading) {
@@ -162,17 +232,17 @@ const App = () => {
       case ViewState.AUTH: return <AuthView onSuccess={handleAuthSuccess} onDevLogin={handleDevLogin} />;
       case ViewState.DEV_PANEL: return <DevPanelView onLogout={handleLogout} />;
       case ViewState.SETUP: return <SetupView onComplete={(name) => { setBusinessName(name); checkAppInitialization(userRole!); }} />;
-      case ViewState.DASHBOARD: return <DashboardView onChangeView={setCurrentView} businessName={businessName} userRole={userRole} />;
+      case ViewState.DASHBOARD: return <DashboardView onChangeView={navigateTo} businessName={businessName} userRole={userRole} />;
       case ViewState.SALES: return <SalesView businessName={businessName} />;
       case ViewState.PRODUCTS: return <ProductsListView businessName={businessName} />;
       case ViewState.CURRENT_ACCOUNT: return <CurrentAccountView businessName={businessName} />;
       case ViewState.WORKSHOP: return <TallerView businessName={businessName} />;
       case ViewState.PAYMENTS: return <PaymentsView businessName={businessName} />;
-      case ViewState.CHAT: return currentUser ? <ChatView currentUser={currentUser} onBack={() => setCurrentView(ViewState.DASHBOARD)} /> : null;
-      case ViewState.ADD_PRODUCT: return <AddProductView onBack={() => setCurrentView(ViewState.PRODUCTS)} onImportClick={() => setCurrentView(ViewState.IMPORT_PRODUCT)} businessName={businessName} />;
-      case ViewState.IMPORT_PRODUCT: return <ImportView onBack={() => setCurrentView(ViewState.ADD_PRODUCT)} />;
-      case ViewState.ADD_EXPENSE: return <AddExpenseView onBack={() => setCurrentView(ViewState.DASHBOARD)} businessName={businessName} />;
-      default: return <DashboardView onChangeView={setCurrentView} businessName={businessName} userRole={userRole} />;
+      case ViewState.CHAT: return currentUser ? <ChatView currentUser={currentUser} onBack={() => navigateTo(ViewState.DASHBOARD)} /> : null;
+      case ViewState.ADD_PRODUCT: return <AddProductView onBack={() => navigateTo(ViewState.PRODUCTS)} onImportClick={() => navigateTo(ViewState.IMPORT_PRODUCT)} businessName={businessName} />;
+      case ViewState.IMPORT_PRODUCT: return <ImportView onBack={() => navigateTo(ViewState.ADD_PRODUCT)} />;
+      case ViewState.ADD_EXPENSE: return <AddExpenseView onBack={() => navigateTo(ViewState.DASHBOARD)} businessName={businessName} />;
+      default: return <DashboardView onChangeView={navigateTo} businessName={businessName} userRole={userRole} />;
     }
   };
 
@@ -183,15 +253,14 @@ const App = () => {
         showNav={showNav || currentView === ViewState.CHAT} 
         activeNav={activeNav}
         onNavigate={(nav) => {
-            setActiveNav(nav);
-            if (nav === 'dev_panel') setCurrentView(ViewState.DEV_PANEL);
-            else if (nav === 'home') setCurrentView(ViewState.DASHBOARD);
-            else if (nav === 'sales') setCurrentView(ViewState.SALES);
-            else if (nav === 'products') setCurrentView(ViewState.PRODUCTS);
-            else if (nav === 'accounts') setCurrentView(ViewState.CURRENT_ACCOUNT);
-            else if (nav === 'workshop') setCurrentView(ViewState.WORKSHOP);
-            else if (nav === 'payments') setCurrentView(ViewState.PAYMENTS);
-            else if (nav === 'chat') setCurrentView(ViewState.CHAT);
+            if (nav === 'dev_panel') navigateTo(ViewState.DEV_PANEL);
+            else if (nav === 'home') navigateTo(ViewState.DASHBOARD);
+            else if (nav === 'sales') navigateTo(ViewState.SALES);
+            else if (nav === 'products') navigateTo(ViewState.PRODUCTS);
+            else if (nav === 'accounts') navigateTo(ViewState.CURRENT_ACCOUNT);
+            else if (nav === 'workshop') navigateTo(ViewState.WORKSHOP);
+            else if (nav === 'payments') navigateTo(ViewState.PAYMENTS);
+            else if (nav === 'chat') navigateTo(ViewState.CHAT);
         }}
         businessName={businessName}
         userRole={userRole || UserRole.LEADER}

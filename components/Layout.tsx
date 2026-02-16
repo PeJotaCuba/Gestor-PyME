@@ -99,9 +99,11 @@ export const Layout: React.FC<LayoutProps> = ({
              {/* Cabecera del Drawer */}
              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start bg-slate-50 dark:bg-slate-950/50">
                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-orange-500/20">
-                        {getInitials(businessName)}
-                    </div>
+                    <img 
+                        src="/icons/android/android-launchericon-72-72.png" 
+                        alt="Logo" 
+                        className="w-12 h-12 rounded-xl shadow-lg shadow-orange-500/20"
+                    />
                     <div>
                         <h2 className="font-extrabold text-slate-900 dark:text-white text-lg leading-tight truncate max-w-[150px]">{businessName || 'Gestor PyME'}</h2>
                         <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-0.5">
@@ -130,13 +132,6 @@ export const Layout: React.FC<LayoutProps> = ({
                     />
                 )}
                 
-                <MobileDrawerItem 
-                    icon={<MessageSquare size={22} />} 
-                    label="Mensajes y Archivos" 
-                    active={activeNav === 'chat'} 
-                    onClick={() => handleMobileNavigate('chat')}
-                />
-
                 <MobileDrawerItem 
                     icon={<ShoppingBag size={22} />} 
                     label="Punto de Venta" 
@@ -223,15 +218,13 @@ export const Layout: React.FC<LayoutProps> = ({
            <div className={`p-6 pb-4 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
               {!isSidebarCollapsed && (
                   <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2 animate-in fade-in duration-300">
-                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center shrink-0">
-                      <span className="text-white font-bold text-lg">G</span>
-                    </div>
+                    <img src="/icons/android/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
                     <span className="whitespace-nowrap">Gestor<span className="text-orange-500">PyME</span></span>
                   </h1>
               )}
               {isSidebarCollapsed && (
-                  <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center shrink-0 cursor-pointer" onClick={() => setIsSidebarCollapsed(false)}>
-                      <span className="text-white font-bold text-xl">G</span>
+                  <div className="w-10 h-10 flex items-center justify-center shrink-0 cursor-pointer" onClick={() => setIsSidebarCollapsed(false)}>
+                      <img src="/icons/android/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
                   </div>
               )}
               
@@ -261,14 +254,6 @@ export const Layout: React.FC<LayoutProps> = ({
                   />
               )}
               
-              <DesktopNavItem 
-                icon={<MessageSquare size={20}/>} 
-                label="Compartido" 
-                active={activeNav === 'chat'} 
-                onClick={() => onNavigate?.('chat')} 
-                collapsed={isSidebarCollapsed}
-              />
-
               <DesktopNavItem 
                 icon={<ShoppingBag size={20}/>} 
                 label="Ventas" 
@@ -378,7 +363,8 @@ export const Layout: React.FC<LayoutProps> = ({
                     )}
                     
                     {/* Mobile Branding */}
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
+                        <img src="/icons/android/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
                         <span className="font-extrabold text-xl text-slate-900 dark:text-white tracking-tight">Gestor<span className="text-orange-500">PyME</span></span>
                     </div>
                 </div>
@@ -417,7 +403,6 @@ export const Layout: React.FC<LayoutProps> = ({
                                 {activeNav === 'payments' && 'Pagos'}
                                 {activeNav === 'settings' && 'Configuración'}
                                 {activeNav === 'dev_panel' && 'Panel Desarrollador'}
-                                {activeNav === 'chat' && 'Mensajería y Compartido'}
                             </h2>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
                                 {userRole === UserRole.DEVELOPER ? 'Acceso Total + Dev' : (isLeaderOrDev ? 'Modo Líder' : 'Modo Asistente')}

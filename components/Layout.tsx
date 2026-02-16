@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Signal, Wifi, Battery, DollarSign, Home, BarChart2, Package, Settings, LogOut, Menu, ChevronLeft, CreditCard, ShoppingBag, Wrench, Banknote, Sun, Moon, UserCircle, Terminal, X, ChevronRight, MessageSquare } from 'lucide-react';
 import { UserRole } from '../types';
+import { Logo } from './Logo';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -99,11 +100,9 @@ export const Layout: React.FC<LayoutProps> = ({
              {/* Cabecera del Drawer */}
              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start bg-slate-50 dark:bg-slate-950/50">
                  <div className="flex items-center gap-3">
-                    <img 
-                        src="icons/android-launchericon-72-72.png" 
-                        alt="Logo" 
-                        className="w-12 h-12 rounded-xl shadow-lg shadow-orange-500/20"
-                    />
+                    <div className="w-12 h-12 flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-orange-500/10">
+                        <Logo className="w-10 h-10" onlyIcon={true} />
+                    </div>
                     <div>
                         <h2 className="font-extrabold text-slate-900 dark:text-white text-lg leading-tight truncate max-w-[150px]">{businessName || 'Gestor PyME'}</h2>
                         <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-0.5">
@@ -217,14 +216,13 @@ export const Layout: React.FC<LayoutProps> = ({
         <aside className={`hidden md:flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-screen sticky top-0 z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-72'}`}>
            <div className={`p-6 pb-4 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
               {!isSidebarCollapsed && (
-                  <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2 animate-in fade-in duration-300">
-                    <img src="icons/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
-                    <span className="whitespace-nowrap">Gestor<span className="text-orange-500">PyME</span></span>
-                  </h1>
+                  <div className="animate-in fade-in duration-300">
+                      <Logo className="h-8 w-auto" />
+                  </div>
               )}
               {isSidebarCollapsed && (
                   <div className="w-10 h-10 flex items-center justify-center shrink-0 cursor-pointer" onClick={() => setIsSidebarCollapsed(false)}>
-                      <img src="icons/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
+                      <Logo className="h-8 w-8" onlyIcon={true} />
                   </div>
               )}
               
@@ -364,8 +362,7 @@ export const Layout: React.FC<LayoutProps> = ({
                     
                     {/* Mobile Branding */}
                     <div className="flex items-center gap-2">
-                        <img src="icons/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
-                        <span className="font-extrabold text-xl text-slate-900 dark:text-white tracking-tight">Gestor<span className="text-orange-500">PyME</span></span>
+                        <Logo className="h-8 w-auto" showText={true} />
                     </div>
                 </div>
 

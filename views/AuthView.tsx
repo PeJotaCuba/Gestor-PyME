@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheck, User, Users, Key, Terminal, ArrowRight, AlertCircle, LogIn, Lock, ChevronLeft, Cloud, Eye, EyeOff, MessageCircle, Check } from 'lucide-react';
 import { UserRole, CloudUser } from '../types';
 import { CloudService } from '../services/firebase';
+import { Logo } from '../components/Logo';
 
 interface AuthViewProps {
   onSuccess: (role: UserRole, licenseKey: string, syncData?: boolean, userData?: CloudUser) => void;
@@ -104,11 +105,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 transition-colors">
             <div className="max-w-sm w-full bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="text-center mb-6">
-                    <img 
-                        src="icons/android-launchericon-72-72.png" 
-                        alt="Security" 
-                        className="w-16 h-16 mx-auto mb-4 rounded-xl shadow-lg shadow-orange-500/20" 
-                    />
+                    <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-white rounded-xl shadow-lg shadow-orange-500/20">
+                        <Logo className="w-12 h-12" onlyIcon={true} />
+                    </div>
                     <h2 className="text-xl font-bold text-slate-900 dark:text-white">Verificación de Seguridad</h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Dispositivo no reconocido. Verifica tu identidad.</p>
                 </div>
@@ -163,11 +162,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 transition-colors">
             <div className="max-w-sm w-full bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="text-center mb-8">
-                     <img 
-                        src="icons/android-launchericon-96-96.png" 
-                        alt="Dev Mode" 
-                        className="w-20 h-20 mx-auto mb-4 rounded-2xl shadow-lg shadow-orange-500/20" 
-                    />
+                     <div className="w-20 h-20 mx-auto mb-4 flex items-center justify-center bg-white rounded-2xl shadow-lg shadow-orange-500/20">
+                        <Logo className="w-16 h-16" onlyIcon={true} />
+                     </div>
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Modo Desarrollador</h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Acceso directo sin licencia.</p>
                 </div>
@@ -211,12 +208,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
           <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 transition-colors">
               <div className="max-w-md w-full">
                   <div className="text-center mb-10">
-                      <img 
-                        src="icons/android-launchericon-144-144.png" 
-                        alt="Logo" 
-                        className="w-24 h-24 mx-auto mb-4 rounded-3xl shadow-2xl shadow-orange-500/20"
-                      />
-                      <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white mb-2 tracking-tighter">Gestor<span className="text-orange-500">PyME</span></h1>
+                      <div className="flex justify-center mb-4">
+                          <Logo className="h-16 w-auto" />
+                      </div>
                       <p className="text-slate-500 dark:text-slate-400">Selecciona tu modo de acceso</p>
                   </div>
                   
@@ -266,7 +260,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
                       <ChevronLeft size={16} /> Atrás
                   </button>
                   <div className="flex items-center gap-3 mb-1">
-                      <img src="icons/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
+                      <Logo className="h-8 w-auto" onlyIcon={true} />
                       <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Iniciar Sesión</h2>
                   </div>
                   <p className="text-slate-500 dark:text-slate-400 text-sm">

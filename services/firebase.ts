@@ -50,6 +50,9 @@ export const CloudService = {
         if (session) {
             // Verificar que el usuario aún existe en la DB y actualizar datos
             const users = getLocalDB();
+            // Si es el usuario maestro hardcoded, permitirlo
+            if (session.username === 'des26') return session;
+
             const freshUser = users.find(u => u.uid === session.uid);
             return freshUser || null;
         }
@@ -60,6 +63,23 @@ export const CloudService = {
         // Simular retardo de red
         await new Promise(resolve => setTimeout(resolve, 500));
         
+        // --- CREDENCIALES MAESTRAS DE DESARROLLADOR ---
+        if (identifier === 'des26' && password === 'Gpymedes*26') {
+             const masterDev: CloudUser = {
+                uid: 'master_dev_id',
+                username: 'des26',
+                name: 'Admin Desarrollador',
+                phone: '50000000',
+                role: UserRole.DEVELOPER,
+                licenseKey: 'DEV-MASTER-ACCESS',
+                licenseValidated: true,
+                activeSessions: [getDeviceId()] 
+            };
+            // Guardar sesión
+            localStorage.setItem(SESSION_KEY, JSON.stringify(masterDev));
+            return { user: masterDev };
+        }
+
         const users = getLocalDB();
         const deviceId = getDeviceId();
         
@@ -375,4 +395,4 @@ export const CloudService = {
     }
 };
 
-export const auth = { currentUser: null }; 
+export const auth = { currentUser: null };

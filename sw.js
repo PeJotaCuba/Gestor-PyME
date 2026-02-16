@@ -59,14 +59,14 @@ self.addEventListener('fetch', (event) => {
       caches.open(CACHE_NAME).then(async (cache) => {
         const cachedResponse = await cache.match(event.request);
         const networkFetch = fetch(event.request).then((response) => {
-          // Solo guardamos si la respuesta es válida
-          if (response && response.status === 200 && response.type === 'cors' || response.type === 'basic') {
+          // Solo guardamos si la respuesta es válida y exitosa (Status 200)
+          // Corrección: Paréntesis para asegurar que el status 200 aplique a ambos tipos
+          if (response && response.status === 200 && (response.type === 'cors' || response.type === 'basic')) {
              cache.put(event.request, response.clone());
           }
           return response;
         }).catch(() => {
            // Si falla la red y no hay caché, no podemos hacer mucho para recursos externos
-           // excepto quizás devolver un fallback si fuera una imagen
         });
 
         return cachedResponse || networkFetch;
@@ -98,8 +98,6 @@ self.addEventListener('fetch', (event) => {
              if (cachedResponse) {
                  return cachedResponse;
              }
-             // Fallback opcional para navegación (página offline)
-             // if (event.request.mode === 'navigate') return caches.match('./offline.html');
           });
         })
     );

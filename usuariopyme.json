@@ -1,0 +1,26 @@
+[
+  {
+    "username": "pejotar21@gmail.com",
+    "password": "PedroJ*26",
+    "name": "Pedro José Reyes Acuña ",
+    "phone": "54413935",
+    "licenseKey": "GP-BAY-2026-4936",
+    "role": "LEADER",
+    "linkedLeaderId": "",
+    "uid": "local_1771212160236_823",
+    "firstLogin": null,
+    "licenseValidated": false
+  },
+  {
+    "username": "rosana0717@gmail.com",
+    "password": "Rosy*26",
+    "name": "Rosana Fernández Verdecia",
+    "phone": "53535793",
+    "licenseKey": "GP-BAY-2026-4936",
+    "role": "ASSISTANT",
+    "linkedLeaderId": "local_1771212160236_823",
+    "uid": "local_1771212244982_562",
+    "firstLogin": null,
+    "licenseValidated": false
+  }
+]

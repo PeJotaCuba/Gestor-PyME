@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Terminal, Plus, ShieldCheck, MapPin, User, Phone, Mail, Lock, AlertCircle, Loader2, Link as LinkIcon, Users, Download, Upload, FileText, Store, Eye, EyeOff, Edit2, Trash2, X, Save } from 'lucide-react';
 import { CloudService } from '../services/firebase';
 import { UserRole, CloudUser } from '../types';
-import { Logo } from '../components/Logo';
 
 interface DevPanelViewProps {
     onLogout: () => void;
@@ -241,8 +240,8 @@ export const DevPanelView: React.FC<DevPanelViewProps> = ({ onLogout }) => {
             <div className="max-w-6xl mx-auto w-full mb-8">
                 <header className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-4">
-                        <div className="bg-white p-2 rounded-xl shadow-lg shadow-orange-500/10">
-                            <Logo className="h-10 w-auto" onlyIcon={true} />
+                        <div className="bg-white p-3 rounded-xl shadow-lg shadow-orange-500/10 border border-slate-100 dark:border-slate-800">
+                             <Terminal className="text-red-500" size={32} />
                         </div>
                         <div>
                             <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Panel Local</h1>

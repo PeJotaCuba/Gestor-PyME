@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Signal, Wifi, Battery, DollarSign, Home, BarChart2, Package, Settings, LogOut, Menu, ChevronLeft, CreditCard, ShoppingBag, Wrench, Banknote, Sun, Moon, UserCircle, Terminal, X, ChevronRight, MessageSquare } from 'lucide-react';
+import { Signal, Wifi, Battery, DollarSign, Home, BarChart2, Package, Settings, LogOut, Menu, ChevronLeft, CreditCard, ShoppingBag, Wrench, Banknote, Sun, Moon, UserCircle, Terminal, X, ChevronRight, MessageSquare, Box } from 'lucide-react';
 import { UserRole } from '../types';
-import { Logo } from './Logo';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -100,8 +99,8 @@ export const Layout: React.FC<LayoutProps> = ({
              {/* Cabecera del Drawer */}
              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start bg-slate-50 dark:bg-slate-950/50">
                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-orange-500/10">
-                        <Logo className="w-10 h-10" onlyIcon={true} />
+                    <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-orange-500/20">
+                        GP
                     </div>
                     <div>
                         <h2 className="font-extrabold text-slate-900 dark:text-white text-lg leading-tight truncate max-w-[150px]">{businessName || 'Gestor PyME'}</h2>
@@ -216,13 +215,13 @@ export const Layout: React.FC<LayoutProps> = ({
         <aside className={`hidden md:flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-screen sticky top-0 z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-72'}`}>
            <div className={`p-6 pb-4 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
               {!isSidebarCollapsed && (
-                  <div className="animate-in fade-in duration-300">
-                      <Logo className="h-8 w-auto" />
-                  </div>
+                  <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2 animate-in fade-in duration-300 tracking-tighter">
+                    Gestor<span className="text-orange-500">PyME</span>
+                  </h1>
               )}
               {isSidebarCollapsed && (
                   <div className="w-10 h-10 flex items-center justify-center shrink-0 cursor-pointer" onClick={() => setIsSidebarCollapsed(false)}>
-                      <Logo className="h-8 w-8" onlyIcon={true} />
+                      <span className="text-xl font-black text-orange-500 tracking-tighter">GP</span>
                   </div>
               )}
               
@@ -362,7 +361,7 @@ export const Layout: React.FC<LayoutProps> = ({
                     
                     {/* Mobile Branding */}
                     <div className="flex items-center gap-2">
-                        <Logo className="h-8 w-auto" showText={true} />
+                        <span className="font-black text-xl text-slate-900 dark:text-white tracking-tighter">Gestor<span className="text-orange-500">PyME</span></span>
                     </div>
                 </div>
 

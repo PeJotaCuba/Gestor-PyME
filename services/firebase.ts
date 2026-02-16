@@ -269,6 +269,65 @@ export const CloudService = {
         return false;
     },
 
+    // --- SINCRONIZACIÓN REMOTA (GITHUB) ---
+    // Compara la DB local con la remota
+    checkRemoteUpdates: async (remoteUrl: string): Promise<{hasUpdates: boolean, remoteData?: CloudUser[]}> => {
+        try {
+            const response = await fetch(remoteUrl, { cache: "no-store" });
+            if (!response.ok) return { hasUpdates: false };
+            
+            const remoteUsers: CloudUser[] = await response.json();
+            const localUsers = getLocalDB();
+
+            // Lógica de comparación: Generamos una "firma" de configuración (ignorando sesiones dinámicas)
+            const getSignature = (users: CloudUser[]) => {
+                return JSON.stringify(users.map(u => ({
+                    uid: u.uid,
+                    username: u.username,
+                    pass: u.password,
+                    role: u.role,
+                    lic: u.licenseKey,
+                    name: u.name
+                })).sort((a,b) => a.uid?.localeCompare(b.uid || '') || 0));
+            };
+
+            const localSig = getSignature(localUsers);
+            const remoteSig = getSignature(remoteUsers);
+
+            return { 
+                hasUpdates: localSig !== remoteSig,
+                remoteData: remoteUsers 
+            };
+        } catch (e) {
+            console.error("Error checking remote updates:", e);
+            return { hasUpdates: false };
+        }
+    },
+
+    // Aplica la actualización remota, preservando sesiones locales
+    applyRemoteUpdates: (remoteUsers: CloudUser[]) => {
+        const localUsers = getLocalDB();
+        
+        // Creamos la nueva lista base desde el remoto
+        const newUsers = remoteUsers.map(remoteUser => {
+            // Buscar si existe localmente para preservar datos dinámicos (sesiones, firstLogin)
+            const existingLocal = localUsers.find(l => l.uid === remoteUser.uid);
+            if (existingLocal) {
+                return {
+                    ...remoteUser, // La configuración remota manda
+                    activeSessions: existingLocal.activeSessions || [], // Preservar sesiones
+                    firstLogin: existingLocal.firstLogin, // Preservar estado de prueba
+                    trialUntil: existingLocal.trialUntil,
+                    licenseValidated: existingLocal.licenseValidated // Preservar estado validación
+                };
+            }
+            return remoteUser; // Usuario nuevo
+        });
+
+        saveLocalDB(newUsers);
+        return true;
+    },
+
     // --- IMPORTACIÓN / EXPORTACIÓN ---
     exportDatabase: () => {
         const users = getLocalDB();

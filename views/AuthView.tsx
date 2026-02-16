@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, User, Users, Key, Terminal, ArrowRight, AlertCircle, LogIn, Lock, ChevronLeft, Cloud, Eye, EyeOff, MessageCircle, Check } from 'lucide-react';
+import { ShieldCheck, User, Users, Key, Terminal, ArrowRight, AlertCircle, LogIn, Lock, ChevronLeft, Cloud, Eye, EyeOff, MessageCircle, Check, RefreshCw, DownloadCloud } from 'lucide-react';
 import { UserRole, CloudUser } from '../types';
 import { CloudService } from '../services/firebase';
 
@@ -29,6 +29,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
   const [verificationCode, setVerificationCode] = useState('');
   const [authCodeInput, setAuthCodeInput] = useState('');
 
+  // Update DB State
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [isUpdatingDB, setIsUpdatingDB] = useState(false);
+  const [remoteDataCache, setRemoteDataCache] = useState<CloudUser[] | null>(null);
+  const REMOTE_DB_URL = "https://raw.githubusercontent.com/PeJotaCuba/Gestor-PyME/refs/heads/main/usuariopyme.json";
+
   // Generate 4 numbers and 2 letters intercalated code (N-L-N-L-N-N)
   const generateDevCode = () => {
       const n = () => Math.floor(Math.random() * 10).toString();
@@ -41,6 +47,39 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
           setVerificationCode(generateDevCode());
       }
   }, [step]);
+
+  // Check for updates on mount
+  useEffect(() => {
+      const checkForUpdates = async () => {
+          const result = await CloudService.checkRemoteUpdates(REMOTE_DB_URL);
+          if (result.hasUpdates && result.remoteData) {
+              setRemoteDataCache(result.remoteData);
+              setShowUpdateModal(true);
+          }
+      };
+      checkForUpdates();
+  }, []);
+
+  const handleManualUpdateCheck = async () => {
+      setIsUpdatingDB(true);
+      const result = await CloudService.checkRemoteUpdates(REMOTE_DB_URL);
+      if (result.hasUpdates && result.remoteData) {
+          setRemoteDataCache(result.remoteData);
+          setShowUpdateModal(true);
+      } else {
+          alert("La base de datos ya está actualizada.");
+      }
+      setIsUpdatingDB(false);
+  };
+
+  const performUpdate = () => {
+      if (remoteDataCache) {
+          CloudService.applyRemoteUpdates(remoteDataCache);
+          alert("Base de datos actualizada correctamente.");
+          setShowUpdateModal(false);
+          setRemoteDataCache(null);
+      }
+  };
 
   const handleRoleSelect = (role: UserRole) => {
       setSelectedRole(role);
@@ -99,8 +138,50 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
       }
   };
 
-  if (step === 'DEV_VERIFY') {
-      return (
+  return (
+    <>
+      {/* Update DB Button (Top Right) */}
+      <div className="fixed top-4 right-4 z-50">
+          <button 
+            onClick={handleManualUpdateCheck}
+            disabled={isUpdatingDB}
+            className="p-3 bg-slate-900 text-white dark:bg-slate-700 rounded-full shadow-lg hover:bg-slate-700 dark:hover:bg-slate-600 transition-all active:scale-95 flex items-center gap-2"
+            title="Actualizar Base de Datos de Usuarios"
+          >
+              <RefreshCw size={20} className={isUpdatingDB ? "animate-spin" : ""} />
+          </button>
+      </div>
+
+      {/* Update Dialog Overlay */}
+      {showUpdateModal && (
+          <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
+              <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl max-w-sm w-full shadow-2xl border border-orange-500/20 text-center">
+                  <div className="w-16 h-16 bg-orange-100 dark:bg-orange-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-orange-500">
+                      <DownloadCloud size={32} />
+                  </div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white mb-2">Actualización Disponible</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
+                      Se han detectado cambios en la base de datos de usuarios. ¿Deseas actualizar ahora para obtener las últimas configuraciones?
+                  </p>
+                  <div className="flex flex-col gap-3">
+                      <button 
+                        onClick={performUpdate}
+                        className="w-full py-3 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 shadow-lg shadow-orange-500/20"
+                      >
+                          Sí, Actualizar Ahora
+                      </button>
+                      <button 
+                        onClick={() => setShowUpdateModal(false)}
+                        className="w-full py-3 text-slate-400 font-bold hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                          Recordar más tarde
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {step === 'DEV_VERIFY' ? (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 transition-colors">
             <div className="max-w-sm w-full bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="text-center mb-6">
@@ -150,11 +231,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
                 </div>
             </div>
         </div>
-      );
-  }
-
-  if (step === 'DEV_LOGIN') {
-      return (
+      ) : step === 'DEV_LOGIN' ? (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 transition-colors">
             <div className="max-w-sm w-full bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="text-center mb-8">
@@ -193,11 +270,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
                 </div>
             </div>
         </div>
-      );
-  }
-
-  if (step === 'ROLE_SELECT') {
-      return (
+      ) : step === 'ROLE_SELECT' ? (
           <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 transition-colors">
               <div className="max-w-md w-full">
                   <div className="text-center mb-10">
@@ -240,56 +313,55 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
                   </div>
               </div>
           </div>
-      );
-  }
-
-  return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 transition-colors">
-          <div className="max-sm w-full bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700">
-              <div className="mb-6">
-                  <button onClick={() => setStep('ROLE_SELECT')} className="text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1 text-sm font-bold mb-4">
-                      <ChevronLeft size={16} /> Atrás
-                  </button>
-                  <div className="flex items-center gap-3 mb-1">
-                      <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Iniciar Sesión</h2>
+      ) : (
+          <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 transition-colors">
+              <div className="max-sm w-full bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700">
+                  <div className="mb-6">
+                      <button onClick={() => setStep('ROLE_SELECT')} className="text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1 text-sm font-bold mb-4">
+                          <ChevronLeft size={16} /> Atrás
+                      </button>
+                      <div className="flex items-center gap-3 mb-1">
+                          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Iniciar Sesión</h2>
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400 text-sm">
+                          Accede a tu cuenta de {selectedRole === UserRole.LEADER ? 'Líder' : 'Asistente'}.
+                      </p>
                   </div>
-                  <p className="text-slate-500 dark:text-slate-400 text-sm">
-                      Accede a tu cuenta de {selectedRole === UserRole.LEADER ? 'Líder' : 'Asistente'}.
-                  </p>
-              </div>
 
-              <div className="space-y-4">
-                  <input 
-                      type="text" 
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="Usuario o Teléfono"
-                      className="w-full p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 placeholder-slate-400"
-                  />
-                  <div className="relative">
+                  <div className="space-y-4">
                       <input 
-                          type={showPassword ? "text" : "password"}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Contraseña"
+                          type="text" 
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          placeholder="Usuario o Teléfono"
                           className="w-full p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 placeholder-slate-400"
                       />
+                      <div className="relative">
+                          <input 
+                              type={showPassword ? "text" : "password"}
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              placeholder="Contraseña"
+                              className="w-full p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500 placeholder-slate-400"
+                          />
+                          <button 
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                            >
+                                {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+                            </button>
+                      </div>
                       <button 
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                        >
-                            {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
-                        </button>
+                        onClick={handleGeneralLogin}
+                        disabled={isLoading}
+                        className="w-full py-4 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
+                      >
+                          {isLoading ? 'Conectando...' : 'Entrar'}
+                      </button>
                   </div>
-                  <button 
-                    onClick={handleGeneralLogin}
-                    disabled={isLoading}
-                    className="w-full py-4 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
-                  >
-                      {isLoading ? 'Conectando...' : 'Entrar'}
-                  </button>
               </div>
           </div>
-      </div>
+      )}
+    </>
   );
 };

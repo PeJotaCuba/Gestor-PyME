@@ -100,7 +100,7 @@ export const Layout: React.FC<LayoutProps> = ({
              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start bg-slate-50 dark:bg-slate-950/50">
                  <div className="flex items-center gap-3">
                     <img 
-                        src="/icons/android/android-launchericon-72-72.png" 
+                        src="icons/android-launchericon-72-72.png" 
                         alt="Logo" 
                         className="w-12 h-12 rounded-xl shadow-lg shadow-orange-500/20"
                     />
@@ -218,13 +218,13 @@ export const Layout: React.FC<LayoutProps> = ({
            <div className={`p-6 pb-4 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
               {!isSidebarCollapsed && (
                   <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2 animate-in fade-in duration-300">
-                    <img src="/icons/android/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
+                    <img src="icons/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
                     <span className="whitespace-nowrap">Gestor<span className="text-orange-500">PyME</span></span>
                   </h1>
               )}
               {isSidebarCollapsed && (
                   <div className="w-10 h-10 flex items-center justify-center shrink-0 cursor-pointer" onClick={() => setIsSidebarCollapsed(false)}>
-                      <img src="/icons/android/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
+                      <img src="icons/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
                   </div>
               )}
               
@@ -364,7 +364,7 @@ export const Layout: React.FC<LayoutProps> = ({
                     
                     {/* Mobile Branding */}
                     <div className="flex items-center gap-2">
-                        <img src="/icons/android/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
+                        <img src="icons/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
                         <span className="font-extrabold text-xl text-slate-900 dark:text-white tracking-tight">Gestor<span className="text-orange-500">PyME</span></span>
                     </div>
                 </div>

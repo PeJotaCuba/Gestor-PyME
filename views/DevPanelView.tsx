@@ -241,7 +241,7 @@ export const DevPanelView: React.FC<DevPanelViewProps> = ({ onLogout }) => {
                 <header className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-4">
                         <img 
-                            src="/icons/android/android-launchericon-72-72.png" 
+                            src="icons/android-launchericon-72-72.png" 
                             alt="Logo" 
                             className="w-12 h-12 rounded-xl shadow-lg shadow-orange-500/20"
                         />

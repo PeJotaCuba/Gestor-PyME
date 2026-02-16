@@ -105,7 +105,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
             <div className="max-w-sm w-full bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="text-center mb-6">
                     <img 
-                        src="/icons/android/android-launchericon-72-72.png" 
+                        src="icons/android-launchericon-72-72.png" 
                         alt="Security" 
                         className="w-16 h-16 mx-auto mb-4 rounded-xl shadow-lg shadow-orange-500/20" 
                     />
@@ -164,7 +164,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
             <div className="max-w-sm w-full bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="text-center mb-8">
                      <img 
-                        src="/icons/android/android-launchericon-96-96.png" 
+                        src="icons/android-launchericon-96-96.png" 
                         alt="Dev Mode" 
                         className="w-20 h-20 mx-auto mb-4 rounded-2xl shadow-lg shadow-orange-500/20" 
                     />
@@ -212,7 +212,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
               <div className="max-w-md w-full">
                   <div className="text-center mb-10">
                       <img 
-                        src="/icons/android/android-launchericon-144-144.png" 
+                        src="icons/android-launchericon-144-144.png" 
                         alt="Logo" 
                         className="w-24 h-24 mx-auto mb-4 rounded-3xl shadow-2xl shadow-orange-500/20"
                       />
@@ -266,7 +266,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
                       <ChevronLeft size={16} /> Atrás
                   </button>
                   <div className="flex items-center gap-3 mb-1">
-                      <img src="/icons/android/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
+                      <img src="icons/android-launchericon-48-48.png" alt="Logo" className="w-8 h-8 rounded-lg" />
                       <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Iniciar Sesión</h2>
                   </div>
                   <p className="text-slate-500 dark:text-slate-400 text-sm">

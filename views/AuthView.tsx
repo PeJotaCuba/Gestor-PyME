@@ -209,9 +209,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onDevLogin }) => 
               <div className="max-w-md w-full">
                   <div className="text-center mb-10">
                       <div className="flex justify-center mb-4">
-                          <Logo className="h-16 w-auto" />
+                          <img 
+                            src="https://raw.githubusercontent.com/PeJotaCuba/Gestor-PyME/7de9d997a048a7c2127b60451546b64ee6c66e21/icons/android-launchericon-192-192.png" 
+                            alt="Gestor PyME Logo" 
+                            className="h-28 w-28 object-contain rounded-3xl shadow-2xl shadow-orange-500/20 bg-white dark:bg-slate-800 p-2 border border-slate-100 dark:border-slate-700"
+                          />
                       </div>
-                      <p className="text-slate-500 dark:text-slate-400">Selecciona tu modo de acceso</p>
+                      <p className="text-slate-500 dark:text-slate-400 font-medium">Selecciona tu modo de acceso</p>
                   </div>
                   
                   <div className="grid grid-cols-1 gap-4">

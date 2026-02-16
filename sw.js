@@ -1,14 +1,13 @@
 
-const CACHE_NAME = 'gestor-pyme-v3';
+const CACHE_NAME = 'gestor-pyme-v4';
 
 // 1. App Shell (Archivos locales críticos)
+// IMPORTANTE: No incluimos imágenes locales aquí porque ahora usamos URLs externas
 const PRECACHE_URLS = [
   './',
   './index.html',
   './index.tsx',
-  './manifest.json',
-  './icons/android-launchericon-192-192.png',
-  './icons/android-launchericon-512-512.png'
+  './manifest.json'
 ];
 
 // 2. Dominios externos que queremos cachear dinámicamente (CDN, Fuentes, Imágenes)
@@ -18,7 +17,8 @@ const EXTERNAL_DOMAINS_TO_CACHE = [
   'cdn.tailwindcss.com',
   'fonts.googleapis.com',
   'fonts.gstatic.com',
-  'www.gstatic.com' // Firebase scripts
+  'www.gstatic.com',
+  'placehold.co' // Agregamos el proveedor de imágenes
 ];
 
 // Install: Cachear el App Shell
@@ -60,12 +60,13 @@ self.addEventListener('fetch', (event) => {
       caches.open(CACHE_NAME).then(async (cache) => {
         const cachedResponse = await cache.match(event.request);
         const networkFetch = fetch(event.request).then((response) => {
+          // Aseguramos que sea una respuesta válida
           if (response && response.status === 200 && (response.type === 'cors' || response.type === 'basic')) {
              cache.put(event.request, response.clone());
           }
           return response;
         }).catch(() => {
-           // Fallback silencioso si no hay red
+           // Fallback silencioso
         });
 
         return cachedResponse || networkFetch;
@@ -94,7 +95,6 @@ self.addEventListener('fetch', (event) => {
              if (cachedResponse) {
                  return cachedResponse;
              }
-             // Si es navegación y falla todo, podríamos devolver una página offline.html si existiera
           });
         })
     );

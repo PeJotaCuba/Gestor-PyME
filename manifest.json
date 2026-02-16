@@ -11,45 +11,45 @@
   "scope": "/",
   "icons": [
     {
-      "src": "./icons/android-launchericon-48-48.png",
+      "src": "https://placehold.co/48x48/f97316/ffffff.png?text=GP",
       "sizes": "48x48",
       "type": "image/png"
     },
     {
-      "src": "./icons/android-launchericon-72-72.png",
+      "src": "https://placehold.co/72x72/f97316/ffffff.png?text=GP",
       "sizes": "72x72",
       "type": "image/png"
     },
     {
-      "src": "./icons/android-launchericon-96-96.png",
+      "src": "https://placehold.co/96x96/f97316/ffffff.png?text=GP",
       "sizes": "96x96",
       "type": "image/png"
     },
     {
-      "src": "./icons/android-launchericon-144-144.png",
+      "src": "https://placehold.co/144x144/f97316/ffffff.png?text=GP",
       "sizes": "144x144",
       "type": "image/png"
     },
     {
-      "src": "./icons/android-launchericon-192-192.png",
+      "src": "https://placehold.co/192x192/f97316/ffffff.png?text=GP",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./icons/android-launchericon-192-192.png",
+      "src": "https://placehold.co/192x192/f97316/ffffff.png?text=GP",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "./icons/android-launchericon-512-512.png",
+      "src": "https://placehold.co/512x512/f97316/ffffff.png?text=GP",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./icons/android-launchericon-512-512.png",
+      "src": "https://placehold.co/512x512/f97316/ffffff.png?text=GP",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -57,15 +57,15 @@
   ],
   "screenshots": [
     {
-        "src": "./icons/android-launchericon-512-512.png",
-        "sizes": "512x512",
+        "src": "https://placehold.co/1280x720/f97316/ffffff.png?text=Pantalla+Inicio",
+        "sizes": "1280x720",
         "type": "image/png",
         "form_factor": "wide",
         "label": "Pantalla de Inicio"
     },
     {
-        "src": "./icons/android-launchericon-512-512.png",
-        "sizes": "512x512",
+        "src": "https://placehold.co/720x1280/f97316/ffffff.png?text=Pantalla+Movil",
+        "sizes": "720x1280",
         "type": "image/png",
         "form_factor": "narrow",
         "label": "Pantalla de Inicio Móvil"

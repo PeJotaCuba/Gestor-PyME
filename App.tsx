@@ -87,6 +87,7 @@ const App = () => {
       else if (view === ViewState.PAYMENTS) setActiveNav('payments');
       else if (view === ViewState.DEV_PANEL) setActiveNav('dev_panel');
       else if (view === ViewState.CHAT) setActiveNav('chat');
+      else if (view === ViewState.SETUP) setActiveNav('settings');
   };
 
   const navigateTo = (newView: ViewState) => {
@@ -261,6 +262,7 @@ const App = () => {
             else if (nav === 'workshop') navigateTo(ViewState.WORKSHOP);
             else if (nav === 'payments') navigateTo(ViewState.PAYMENTS);
             else if (nav === 'chat') navigateTo(ViewState.CHAT);
+            else if (nav === 'settings') navigateTo(ViewState.SETUP);
         }}
         businessName={businessName}
         userRole={userRole || UserRole.LEADER}

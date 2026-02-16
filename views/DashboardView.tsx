@@ -183,15 +183,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
                     )}
                 </div>
             </div>
-
-             {/* Settings Button */}
-             <button 
-                onClick={() => onChangeView(ViewState.SETUP)}
-                className="w-10 h-10 rounded-full bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
-                title="Configurar Negocio"
-            >
-                <Settings size={20} />
-            </button>
         </div>
       </header>
 

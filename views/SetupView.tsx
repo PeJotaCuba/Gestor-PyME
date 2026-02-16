@@ -207,6 +207,30 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
       if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleContinue = () => {
+    if (!name.trim()) return;
+
+    // 1. Guardar la Configuración Principal
+    const configKey = `Gestor_${name.trim().replace(/\s+/g, '_')}_config`;
+    const configData = {
+        name: name,
+        type: businessType,
+        currency: 'CUP',
+        createdAt: new Date().toISOString()
+    };
+    localStorage.setItem(configKey, JSON.stringify(configData));
+
+    // 2. Guardar Tasa de Cambio si aplica
+    if (linkExchangeRate) {
+        const rateKey = `Gestor_${name.trim().replace(/\s+/g, '_')}_exchangeRate`;
+        const rateData = { rate: exchangeRate, isManual };
+        localStorage.setItem(rateKey, JSON.stringify(rateData));
+    }
+
+    // 3. Notificar al padre para recargar
+    onComplete(name, linkExchangeRate, exchangeRate, isManual);
+  };
+
   const isValid = name.trim().length > 0;
 
   return (
@@ -342,7 +366,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
       {/* Bottom Button */}
       <div className="mt-8">
         <button 
-            onClick={() => isValid && onComplete(name, linkExchangeRate, exchangeRate, isManual)}
+            onClick={handleContinue}
             disabled={!isValid}
             className={`w-full font-bold py-4 rounded-xl shadow-lg transition-all flex items-center justify-center space-x-2 
                 ${isValid 

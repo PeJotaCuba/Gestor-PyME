@@ -4,9 +4,7 @@ const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './index.tsx',
-  './manifest.json',
-  './icons/android-launchericon-192-192.png',
-  './icons/android-launchericon-512-512.png'
+  './manifest.json'
 ];
 
 // Install Event: Cache core assets

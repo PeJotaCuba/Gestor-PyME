@@ -1,12 +1,14 @@
 
-const CACHE_NAME = 'gestor-pyme-v2';
+const CACHE_NAME = 'gestor-pyme-v3';
 
 // 1. App Shell (Archivos locales críticos)
 const PRECACHE_URLS = [
   './',
   './index.html',
   './index.tsx',
-  './manifest.json'
+  './manifest.json',
+  './icons/android-launchericon-192-192.png',
+  './icons/android-launchericon-512-512.png'
 ];
 
 // 2. Dominios externos que queremos cachear dinámicamente (CDN, Fuentes, Imágenes)
@@ -53,20 +55,17 @@ self.addEventListener('fetch', (event) => {
 
   // A. Estrategia: Stale-While-Revalidate
   // Para recursos externos (JS, CSS, Imágenes, Fuentes)
-  // Devuelve la versión en caché rápido, pero busca actualizaciones en segundo plano.
   if (EXTERNAL_DOMAINS_TO_CACHE.some(domain => url.hostname.includes(domain))) {
     event.respondWith(
       caches.open(CACHE_NAME).then(async (cache) => {
         const cachedResponse = await cache.match(event.request);
         const networkFetch = fetch(event.request).then((response) => {
-          // Solo guardamos si la respuesta es válida y exitosa (Status 200)
-          // Corrección: Paréntesis para asegurar que el status 200 aplique a ambos tipos
           if (response && response.status === 200 && (response.type === 'cors' || response.type === 'basic')) {
              cache.put(event.request, response.clone());
           }
           return response;
         }).catch(() => {
-           // Si falla la red y no hay caché, no podemos hacer mucho para recursos externos
+           // Fallback silencioso si no hay red
         });
 
         return cachedResponse || networkFetch;
@@ -76,13 +75,11 @@ self.addEventListener('fetch', (event) => {
   }
 
   // B. Estrategia: Network First (con fallback a Cache)
-  // Para el HTML principal y archivos locales JS/TSX.
-  // Intenta obtener lo más nuevo; si falla (offline), usa la caché.
+  // Para el HTML principal y archivos locales JS/TSX/Assets.
   if (url.origin === self.location.origin) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // Si la red responde bien, actualizamos la caché
           if (!response || response.status !== 200 || response.type !== 'basic') {
             return response;
           }
@@ -93,11 +90,11 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // Si estamos offline, buscamos en caché
           return caches.match(event.request).then((cachedResponse) => {
              if (cachedResponse) {
                  return cachedResponse;
              }
+             // Si es navegación y falla todo, podríamos devolver una página offline.html si existiera
           });
         })
     );

@@ -1,8 +1,7 @@
 
-const CACHE_NAME = 'gestor-pyme-v4';
+const CACHE_NAME = 'gestor-pyme-v5';
 
 // 1. App Shell (Archivos locales críticos)
-// IMPORTANTE: No incluimos imágenes locales aquí porque ahora usamos URLs externas
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -10,7 +9,7 @@ const PRECACHE_URLS = [
   './manifest.json'
 ];
 
-// 2. Dominios externos que queremos cachear dinámicamente (CDN, Fuentes, Imágenes)
+// 2. Dominios externos
 const EXTERNAL_DOMAINS_TO_CACHE = [
   'esm.sh',
   'cdn.jsdelivr.net',
@@ -18,10 +17,10 @@ const EXTERNAL_DOMAINS_TO_CACHE = [
   'fonts.googleapis.com',
   'fonts.gstatic.com',
   'www.gstatic.com',
-  'placehold.co' // Agregamos el proveedor de imágenes
+  'ui-avatars.com', // Icon provider
+  'dummyimage.com'  // Screenshot provider
 ];
 
-// Install: Cachear el App Shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -32,7 +31,6 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate: Limpiar cachés viejas
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -49,25 +47,20 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: Estrategias de Carga
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // A. Estrategia: Stale-While-Revalidate
-  // Para recursos externos (JS, CSS, Imágenes, Fuentes)
+  // Strategy A: Stale-While-Revalidate for external resources
   if (EXTERNAL_DOMAINS_TO_CACHE.some(domain => url.hostname.includes(domain))) {
     event.respondWith(
       caches.open(CACHE_NAME).then(async (cache) => {
         const cachedResponse = await cache.match(event.request);
         const networkFetch = fetch(event.request).then((response) => {
-          // Aseguramos que sea una respuesta válida
-          if (response && response.status === 200 && (response.type === 'cors' || response.type === 'basic')) {
+          if (response && response.status === 200) {
              cache.put(event.request, response.clone());
           }
           return response;
-        }).catch(() => {
-           // Fallback silencioso
-        });
+        }).catch(() => null);
 
         return cachedResponse || networkFetch;
       })
@@ -75,15 +68,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // B. Estrategia: Network First (con fallback a Cache)
-  // Para el HTML principal y archivos locales JS/TSX/Assets.
+  // Strategy B: Network First for local content
   if (url.origin === self.location.origin) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
+          if (!response || response.status !== 200) return response;
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
@@ -91,11 +81,7 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          return caches.match(event.request).then((cachedResponse) => {
-             if (cachedResponse) {
-                 return cachedResponse;
-             }
-          });
+          return caches.match(event.request);
         })
     );
   }

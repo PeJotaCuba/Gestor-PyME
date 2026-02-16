@@ -3,7 +3,7 @@
   "name": "Gestor PyME",
   "short_name": "Gestor PyME",
   "description": "Aplicación web integral para la gestión de costos de PyMEs, cálculo de costos reales, prorrateo de gastos e importación masiva de productos.",
-  "start_url": "./",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#f97316",
@@ -11,45 +11,25 @@
   "scope": "/",
   "icons": [
     {
-      "src": "https://placehold.co/48x48/f97316/ffffff.png?text=GP",
-      "sizes": "48x48",
-      "type": "image/png"
-    },
-    {
-      "src": "https://placehold.co/72x72/f97316/ffffff.png?text=GP",
-      "sizes": "72x72",
-      "type": "image/png"
-    },
-    {
-      "src": "https://placehold.co/96x96/f97316/ffffff.png?text=GP",
-      "sizes": "96x96",
-      "type": "image/png"
-    },
-    {
-      "src": "https://placehold.co/144x144/f97316/ffffff.png?text=GP",
-      "sizes": "144x144",
-      "type": "image/png"
-    },
-    {
-      "src": "https://placehold.co/192x192/f97316/ffffff.png?text=GP",
+      "src": "https://ui-avatars.com/api/?name=GP&background=f97316&color=fff&size=192&format=png&length=2",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://placehold.co/192x192/f97316/ffffff.png?text=GP",
+      "src": "https://ui-avatars.com/api/?name=GP&background=f97316&color=fff&size=192&format=png&length=2",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "https://placehold.co/512x512/f97316/ffffff.png?text=GP",
+      "src": "https://ui-avatars.com/api/?name=GP&background=f97316&color=fff&size=512&format=png&length=2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://placehold.co/512x512/f97316/ffffff.png?text=GP",
+      "src": "https://ui-avatars.com/api/?name=GP&background=f97316&color=fff&size=512&format=png&length=2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -57,18 +37,18 @@
   ],
   "screenshots": [
     {
-        "src": "https://placehold.co/1280x720/f97316/ffffff.png?text=Pantalla+Inicio",
+        "src": "https://dummyimage.com/1280x720/f97316/ffffff.png&text=Gestor+PyME+Desktop",
         "sizes": "1280x720",
         "type": "image/png",
         "form_factor": "wide",
-        "label": "Pantalla de Inicio"
+        "label": "Escritorio"
     },
     {
-        "src": "https://placehold.co/720x1280/f97316/ffffff.png?text=Pantalla+Movil",
+        "src": "https://dummyimage.com/720x1280/f97316/ffffff.png&text=Gestor+PyME+Movil",
         "sizes": "720x1280",
         "type": "image/png",
         "form_factor": "narrow",
-        "label": "Pantalla de Inicio Móvil"
+        "label": "Móvil"
     }
   ]
 }

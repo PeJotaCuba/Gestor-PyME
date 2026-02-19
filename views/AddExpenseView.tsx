@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Home, Zap, CreditCard, Wifi, Droplets, Settings, Info, CheckCircle, Lightbulb, ChevronLeft, ChevronRight, Plus, Truck, Megaphone, Percent, Trash2, Edit2 } from 'lucide-react';
+import { Product } from '../types';
 
 interface AddExpenseViewProps {
     onBack: () => void;
@@ -18,7 +19,7 @@ type ExpenseData = {
     isFixed: boolean;
     prorationMethod: string;
     date?: string; 
-    taxList?: TaxItem[]; // New structure for taxes
+    taxList?: TaxItem[];
 };
 
 export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, businessName }) => {
@@ -129,6 +130,112 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
         setSelectedCategoryIndex(prev => (prev < categories.length - 1 ? prev + 1 : 0));
     };
 
+    // --- RECALCULATION LOGIC ---
+    const recalculateProductCosts = (newExpenses: Record<string, ExpenseData>) => {
+        const storageKeyProd = `Gestor_${businessName.replace(/\s+/g, '_')}_products`;
+        const products: Product[] = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
+        
+        // 1. Calculate Total Inventory Value (needed for proration factors)
+        // We approximate this for the calculation. In a real scenario, this is complex.
+        let totalInventoryValue = 0;
+        products.forEach(p => {
+             // For proration factor, we usually use purchase price * stock (or just purchase price depending on method)
+             // Using purchase price as factor base as per AddProductView logic
+             totalInventoryValue += p.price; 
+        });
+        if (totalInventoryValue === 0) totalInventoryValue = 1;
+
+        // 2. Prepare Expense List
+        const expenseList: any[] = [];
+        Object.entries(newExpenses).forEach(([key, val]: [string, any]) => {
+            if (key !== 'taxes' && val.amount) {
+                const amount = parseFloat(val.amount);
+                if (!isNaN(amount) && amount > 0) {
+                    expenseList.push({ id: key, ...val });
+                }
+            }
+        });
+
+        // 3. Tax Percent
+        let totalTaxPercent = 0;
+        if (newExpenses.taxes && newExpenses.taxes.taxList) {
+             newExpenses.taxes.taxList.forEach((t: any) => totalTaxPercent += (parseFloat(t.percent) || 0));
+        }
+
+        // 4. Update Each Product
+        const updatedProducts = products.map(product => {
+            let totalApplicableFixedExpenses = 0;
+            const productDate = new Date(product.date).toISOString().split('T')[0];
+            
+            // Determine Applicable Expenses
+            // If legacy product (no applicableExpenses field), assume ALL fixed + transport check
+            const productExpenses = product.applicableExpenses || expenseList.map(e => e.id);
+
+            expenseList.forEach(exp => {
+                if (productExpenses.includes(exp.id)) {
+                    if (exp.id === 'transport') {
+                        // Strict date match for transport
+                        if (exp.date === productDate) {
+                            totalApplicableFixedExpenses += parseFloat(exp.amount);
+                        }
+                    } else if (exp.isFixed) {
+                        totalApplicableFixedExpenses += parseFloat(exp.amount);
+                    }
+                }
+            });
+
+            // Calculate Factor
+            // Note: This logic mirrors AddProductView. 
+            // Ideally, proration divides expenses across ALL products. 
+            // Simple logic used here: Factor = Price / TotalValue (Weighted average)
+            const allocationFactor = product.price / totalInventoryValue;
+            
+            // If we use the AddProduct logic exactly:
+            // "calculatedProration = totalFixedExpenses * allocationFactor"
+            // But usually fixed expenses are MONTHLY totals divided by product units... 
+            // To stick to current app logic which adds a *portion* of expense to unit cost:
+            const newProratedCost = Math.round((totalApplicableFixedExpenses * allocationFactor) * 100) / 100;
+            
+            // Recalculate Sale Price (Maintaining margin if possible, or updating cost)
+            // Assuming we update cost and keep sale price, margin changes? 
+            // OR update cost and update sale price to maintain margin?
+            // Usually, if costs go up, price goes up.
+            
+            // Reverse engineer margin from current sale price?
+            // Margin = (Sale - Cost) / Sale  -> No, app uses Cost / (1 - Margin)
+            // Let's assume a fixed margin or try to keep the margin the product had.
+            // If product has no saved margin, assume 30%.
+            
+            const oldBaseCost = product.price + (product.transport || 0);
+            let margin = 0.30; // Default 30%
+            if (product.sale > 0 && oldBaseCost > 0) {
+                 // Sale = Cost / (1 - Margin)  => 1 - Margin = Cost / Sale => Margin = 1 - (Cost/Sale)
+                 // However, taxes are added AFTER.
+                 // App logic: ProvPrice = Base / (1-M); Tax = Prov * T%; Final = Prov + Tax = Prov * (1+T%)
+                 // Final = (Base / (1-M)) * (1+T%)
+                 // Base / (1-M) = Final / (1+T%)
+                 // 1-M = Base / (Final / (1+T%))
+                 const oldTaxRate = totalTaxPercent / 100; // Using NEW tax rate might shift margin calc, but let's try.
+                 const priceBeforeTax = product.sale / (1 + oldTaxRate);
+                 margin = 1 - (oldBaseCost / priceBeforeTax);
+            }
+            if (margin < 0) margin = 0.3; // Fallback
+
+            const newBaseCost = product.price + newProratedCost;
+            const newProvisionalPrice = newBaseCost / (1 - margin);
+            const newTax = Math.round((newProvisionalPrice * (totalTaxPercent / 100)) * 100) / 100;
+            const newSalePrice = Math.round((newProvisionalPrice + newTax) * 100) / 100;
+
+            return {
+                ...product,
+                transport: newProratedCost,
+                sale: newSalePrice
+            };
+        });
+
+        localStorage.setItem(storageKeyProd, JSON.stringify(updatedProducts));
+    };
+
     const handleValidate = () => {
         const finalData = { ...expensesData };
         if (finalData.salaries && finalData.salaries.amount) {
@@ -138,6 +245,11 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
 
         const storageKey = `Gestor_${businessName.replace(/\s+/g, '_')}_expenses`;
         localStorage.setItem(storageKey, JSON.stringify(finalData));
+        
+        // Trigger Recalculation
+        recalculateProductCosts(finalData);
+        alert("Gastos actualizados. Los precios de los productos se han recalculado.");
+
         onBack();
     };
 

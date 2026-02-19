@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Wallet, Package, PlusSquare, Receipt, TrendingUp, ChevronLeft, ChevronRight, Settings, FileText, Download, Calendar, FileSpreadsheet, FileType } from 'lucide-react';
+import { Wallet, Package, Receipt, TrendingUp, ChevronLeft, ChevronRight, Settings, FileText, Download, FileSpreadsheet, FileType } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip } from 'recharts';
 import { ViewState, Product, StockMovement, ContractSale, DailySale, UserRole } from '../types';
 
@@ -128,12 +128,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
 
   const handleGenerateReport = () => {
     // Logic to simulate report generation
-    let reportData = [];
     const reportName = `${reportType}_${dateMode === 'today' ? 'hoy' : 'rango'}.${format}`;
-
-    // Here we would implement the real CSV/PDF logic.
-    // For now, we simulate success and CSV download (as PDF/DOCX require external libs not present).
-    
     let csvContent = "data:text/csv;charset=utf-8,";
     
     // Header based on type
@@ -143,9 +138,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
     if (reportType === 'account_status') csvContent += "Banco,Cuenta,Nombre,Saldo\n";
     if (reportType === 'inventory') csvContent += "ID,Producto,Stock,Costo,Venta\n";
 
-    // Data fetching (simplified for demo)
-    // In a real app, we filter by date here using startDate/endDate
-    
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -209,7 +201,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
                 <div className="flex items-start justify-between mb-4">
                     <div>
                         <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Valor de Inventario</p>
-                        <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">${inventoryValue.toLocaleString()}</h3>
+                        <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">${inventoryValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h3>
                     </div>
                     <div className="p-3 bg-orange-500/10 rounded-xl group-hover:bg-orange-500/20 transition-colors">
                         <Package className="text-orange-600 dark:text-orange-500" size={24} />
@@ -217,10 +209,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
                 </div>
                 <div className="flex gap-2 mt-auto">
                     <button 
-                        onClick={() => onChangeView(ViewState.ADD_PRODUCT)} 
+                        onClick={() => onChangeView(ViewState.PRODUCTS)} 
                         className="flex-1 py-2 px-3 bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-center gap-1 transition-colors"
                     >
-                        <PlusSquare size={14} /> Nuevo Prod.
+                        <Package size={14} /> Ir al Inventario
                     </button>
                 </div>
             </div>
@@ -230,7 +222,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
                 <div className="flex items-start justify-between mb-4">
                     <div>
                         <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Gastos Fijos Mes</p>
-                        <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">${totalExpenses.toLocaleString()}</h3>
+                        <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">${totalExpenses.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h3>
                     </div>
                     <div className="p-3 bg-pink-500/10 rounded-xl group-hover:bg-pink-500/20 transition-colors">
                         <Receipt className="text-pink-600 dark:text-pink-500" size={24} />
@@ -251,7 +243,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onChangeView, busi
                 <div className="flex items-start justify-between mb-4">
                     <div>
                         <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Por Cobrar</p>
-                        <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">${pendingReceivables.toLocaleString()}</h3>
+                        <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">${pendingReceivables.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h3>
                     </div>
                     <div className="p-3 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors">
                         <Wallet className="text-purple-600 dark:text-purple-500" size={24} />

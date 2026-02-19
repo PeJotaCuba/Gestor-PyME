@@ -29,6 +29,9 @@ const App = () => {
   const [isActivating, setIsActivating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Edit Product State
+  const [productToEdit, setProductToEdit] = useState<Product | undefined>(undefined);
+
   // Exchange Rate State
   const [currentExchangeRate, setCurrentExchangeRate] = useState('');
 
@@ -97,6 +100,16 @@ const App = () => {
       // Manually push state when navigating intentionally
       window.history.pushState(null, '', window.location.pathname);
       updateActiveNavFromView(newView);
+  };
+
+  const handleEditProduct = (product: Product) => {
+      setProductToEdit(product);
+      navigateTo(ViewState.ADD_PRODUCT);
+  };
+
+  const handleAddProductClick = () => {
+      setProductToEdit(undefined); // Clear edit state for new product
+      navigateTo(ViewState.ADD_PRODUCT);
   };
 
   useEffect(() => {
@@ -235,12 +248,12 @@ const App = () => {
       case ViewState.SETUP: return <SetupView onComplete={(name) => { setBusinessName(name); checkAppInitialization(userRole!); }} />;
       case ViewState.DASHBOARD: return <DashboardView onChangeView={navigateTo} businessName={businessName} userRole={userRole} />;
       case ViewState.SALES: return <SalesView businessName={businessName} />;
-      case ViewState.PRODUCTS: return <ProductsListView businessName={businessName} />;
+      case ViewState.PRODUCTS: return <ProductsListView businessName={businessName} onAddNew={handleAddProductClick} onEditProduct={handleEditProduct} />;
       case ViewState.CURRENT_ACCOUNT: return <CurrentAccountView businessName={businessName} />;
       case ViewState.WORKSHOP: return <TallerView businessName={businessName} />;
       case ViewState.PAYMENTS: return <PaymentsView businessName={businessName} />;
       case ViewState.CHAT: return currentUser ? <ChatView currentUser={currentUser} onBack={() => navigateTo(ViewState.DASHBOARD)} /> : null;
-      case ViewState.ADD_PRODUCT: return <AddProductView onBack={() => navigateTo(ViewState.PRODUCTS)} onImportClick={() => navigateTo(ViewState.IMPORT_PRODUCT)} businessName={businessName} />;
+      case ViewState.ADD_PRODUCT: return <AddProductView onBack={() => navigateTo(ViewState.PRODUCTS)} onImportClick={() => navigateTo(ViewState.IMPORT_PRODUCT)} businessName={businessName} editProduct={productToEdit} />;
       case ViewState.IMPORT_PRODUCT: return <ImportView onBack={() => navigateTo(ViewState.ADD_PRODUCT)} />;
       case ViewState.ADD_EXPENSE: return <AddExpenseView onBack={() => navigateTo(ViewState.DASHBOARD)} businessName={businessName} />;
       default: return <DashboardView onChangeView={navigateTo} businessName={businessName} userRole={userRole} />;

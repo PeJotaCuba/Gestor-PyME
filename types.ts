@@ -53,6 +53,7 @@ export interface Product {
   sale: number;
   date: string;
   stock?: number;
+  applicableExpenses?: string[]; // List of expense IDs applied to this product
 }
 
 export interface StockMovement {

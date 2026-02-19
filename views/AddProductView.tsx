@@ -1,36 +1,75 @@
 
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Wallet, Layers, ScanBarcode, Truck, Plus, Minus, Tag, Percent } from 'lucide-react';
+import { ChevronRight, Tag, Percent, Truck, Check, CheckSquare, Square } from 'lucide-react';
 import { Product, StockMovement } from '../types';
 
 interface AddProductViewProps {
     onBack: () => void;
     onImportClick: () => void;
     businessName: string;
+    editProduct?: Product;
 }
 
-export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImportClick, businessName }) => {
-    const [name, setName] = useState('');
-    const [category, setCategory] = useState('General');
-    const [purchasePrice, setPurchasePrice] = useState<number>(0);
-    const [quantity, setQuantity] = useState<number>(1);
-    const [margin, setMargin] = useState<number>(30);
-    const [manualSalePrice, setManualSalePrice] = useState<number>(0);
-    const [isManualPrice, setIsManualPrice] = useState(false);
+export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImportClick, businessName, editProduct }) => {
+    const [name, setName] = useState(editProduct ? editProduct.name : '');
+    const [category, setCategory] = useState(editProduct ? editProduct.category || 'General' : 'General');
+    const [purchasePrice, setPurchasePrice] = useState<number>(editProduct ? editProduct.price : 0);
     
+    // Initial qty logic: if editing, we might not change initial stock easily, but user requested editable input. 
+    // We will default to 1 for new, or 0 if edit (to add more) or handle existing.
+    // Simplifying: If editing, this acts as "Adjust Quantity" or reset if re-calculating cost.
+    // For simplicity based on request: "Introduction of initial quantity... manually writing".
+    const [quantity, setQuantity] = useState<number>(editProduct && editProduct.stock ? editProduct.stock : 1);
+    
+    const [margin, setMargin] = useState<number>(30);
+    const [manualSalePrice, setManualSalePrice] = useState<number>(editProduct ? editProduct.sale : 0);
+    const [isManualPrice, setIsManualPrice] = useState(editProduct ? true : false);
+    
+    // Selective Expenses State
+    const [availableExpenses, setAvailableExpenses] = useState<any[]>([]);
+    const [selectedExpenses, setSelectedExpenses] = useState<string[]>([]);
+
     // Calculated Costs
     const [proratedCost, setProratedCost] = useState<number>(0);
     const [totalTaxAmount, setTotalTaxAmount] = useState<number>(0);
 
-    // Calculate Everything (useEffect logic same as before)
+    // Initialize Expenses
     useEffect(() => {
-        if (purchasePrice <= 0) return;
+        const storageKeyExp = `Gestor_${businessName.replace(/\s+/g, '_')}_expenses`;
+        const expenses: Record<string, any> = JSON.parse(localStorage.getItem(storageKeyExp) || '{}');
+        
+        const expenseList: any[] = [];
+        Object.entries(expenses).forEach(([key, val]: [string, any]) => {
+            if (key !== 'taxes' && val.amount) {
+                const amount = parseFloat(val.amount);
+                if (!isNaN(amount) && amount > 0) {
+                    expenseList.push({ id: key, label: key === 'transport' ? 'Transporte' : key, ...val });
+                }
+            }
+        });
+        setAvailableExpenses(expenseList);
+
+        // If editing, use saved selection or default to all. If new, default to all.
+        if (editProduct && editProduct.applicableExpenses) {
+            setSelectedExpenses(editProduct.applicableExpenses);
+        } else {
+             // Default: Select all relevant expenses
+             // Rule: Transport is ONLY selected if dates match, but for a NEW product we assume "today" matches "today" if configured.
+             // However, strictly adhering to the "checkbox" request, we default check all fixed ones.
+             // Transport logic is specific: Cost applies if checked AND dates match.
+             setSelectedExpenses(expenseList.map(e => e.id));
+        }
+    }, [businessName, editProduct]);
+
+    // Calculate Everything
+    useEffect(() => {
+        if (purchasePrice < 0) return;
 
         const storageKeyExp = `Gestor_${businessName.replace(/\s+/g, '_')}_expenses`;
         const expenses: Record<string, any> = JSON.parse(localStorage.getItem(storageKeyExp) || '{}');
-        let totalFixedExpenses = 0;
+        
+        // 1. Calculate Taxes
         let totalTaxPercent = 0;
-
         if (expenses.taxes && expenses.taxes.taxList) {
              expenses.taxes.taxList.forEach((t: any) => {
                  totalTaxPercent += (parseFloat(t.percent) || 0);
@@ -41,13 +80,28 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
             if (totalTaxPercent === 0) totalTaxPercent = 20; 
         }
 
-        Object.entries(expenses).forEach(([key, val]: [string, any]) => {
-            if (key !== 'taxes' && val.amount && val.isFixed) {
-                const amount = parseFloat(val.amount);
-                if (!isNaN(amount)) totalFixedExpenses += amount;
+        // 2. Calculate Proration
+        // We only sum expenses that are SELECTED by the user for this product.
+        let totalApplicableFixedExpenses = 0;
+
+        const productDate = editProduct ? new Date(editProduct.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
+        availableExpenses.forEach(exp => {
+            if (selectedExpenses.includes(exp.id)) {
+                // Special Rule for Transport
+                if (exp.id === 'transport') {
+                    // Only apply if date matches
+                    if (exp.date === productDate) {
+                        totalApplicableFixedExpenses += parseFloat(exp.amount);
+                    }
+                } else if (exp.isFixed) {
+                    // Standard fixed expense
+                    totalApplicableFixedExpenses += parseFloat(exp.amount);
+                }
             }
         });
 
+        // Get Total Inventory Value for Factor
         const storageKeyProd = `Gestor_${businessName.replace(/\s+/g, '_')}_products`;
         const storageKeyMov = `Gestor_${businessName.replace(/\s+/g, '_')}_movements`;
         const products: Product[] = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
@@ -55,6 +109,8 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         
         let totalInventoryValue = 0;
         products.forEach(p => {
+             // If editing, exclude current product's OLD value to avoid circular logic or double counting?
+             // Simple approach: Use total historical value.
              const inQty = movements.filter(m => m.productId === p.id && m.type === 'IN').reduce((sum, m) => sum + m.quantity, 0);
              const outQty = movements.filter(m => m.productId === p.id && m.type === 'OUT').reduce((sum, m) => sum + m.quantity, 0);
              const stock = inQty - outQty;
@@ -67,22 +123,35 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         if (totalInventoryValue > 0) {
             allocationFactor = purchasePrice / totalInventoryValue; 
         } else {
-            allocationFactor = purchasePrice / 100000; 
+            allocationFactor = purchasePrice / 100000; // Fallback
         }
 
-        const calculatedProration = totalFixedExpenses * allocationFactor;
-        setProratedCost(calculatedProration);
+        // Apply Proration
+        const calcProration = totalApplicableFixedExpenses * allocationFactor;
+        
+        // Round to 2 decimals for precision
+        const finalProration = Math.round(calcProration * 100) / 100;
+        setProratedCost(finalProration);
 
-        const baseCost = purchasePrice + calculatedProration;
+        const baseCost = purchasePrice + finalProration;
         const provisionalPrice = baseCost / (1 - (margin / 100));
-        const calculatedTax = provisionalPrice * (totalTaxPercent / 100);
+        
+        const calculatedTax = Math.round((provisionalPrice * (totalTaxPercent / 100)) * 100) / 100;
         setTotalTaxAmount(calculatedTax);
 
         if (!isManualPrice) {
-            setManualSalePrice(provisionalPrice + calculatedTax);
+            setManualSalePrice(Math.round((provisionalPrice + calculatedTax) * 100) / 100);
         }
 
-    }, [purchasePrice, margin, businessName, isManualPrice]);
+    }, [purchasePrice, margin, businessName, isManualPrice, availableExpenses, selectedExpenses, editProduct]);
+
+    const toggleExpense = (id: string) => {
+        if (selectedExpenses.includes(id)) {
+            setSelectedExpenses(prev => prev.filter(e => e !== id));
+        } else {
+            setSelectedExpenses(prev => [...prev, id]);
+        }
+    };
 
     const handleSave = () => {
         if (!name || purchasePrice <= 0) return;
@@ -93,32 +162,54 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         const products: Product[] = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
         const movements: StockMovement[] = JSON.parse(localStorage.getItem(storageKeyMov) || '[]');
 
-        const newId = Date.now();
+        if (editProduct) {
+            // Update existing
+            const updatedProducts = products.map(p => {
+                if (p.id === editProduct.id) {
+                    return {
+                        ...p,
+                        name,
+                        category,
+                        price: purchasePrice,
+                        transport: proratedCost,
+                        sale: manualSalePrice,
+                        applicableExpenses: selectedExpenses // Save selection
+                    };
+                }
+                return p;
+            });
+            localStorage.setItem(storageKeyProd, JSON.stringify(updatedProducts));
+            
+            // Note: We are not modifying the history of movements for editing to keep it simple, 
+            // unless the user specifically wants to correct initial stock which is complex.
+        } else {
+            // Create New
+            const newId = Date.now();
+            const newProduct: Product = {
+                id: newId,
+                name,
+                category,
+                price: purchasePrice,
+                transport: proratedCost,
+                sale: manualSalePrice,
+                date: new Date().toISOString(),
+                applicableExpenses: selectedExpenses
+            };
 
-        const newProduct: Product = {
-            id: newId,
-            name,
-            category,
-            price: purchasePrice,
-            transport: proratedCost,
-            sale: manualSalePrice,
-            date: new Date().toISOString()
-        };
+            const newMovement: StockMovement = {
+                id: Date.now() + 1,
+                productId: newId,
+                type: 'IN',
+                quantity: quantity,
+                date: new Date().toISOString(),
+                reason: 'PROVISION'
+            };
 
-        const newMovement: StockMovement = {
-            id: Date.now() + 1,
-            productId: newId,
-            type: 'IN',
-            quantity: quantity,
-            date: new Date().toISOString(),
-            reason: 'PROVISION'
-        };
-
-        products.push(newProduct);
-        movements.push(newMovement);
-
-        localStorage.setItem(storageKeyProd, JSON.stringify(products));
-        localStorage.setItem(storageKeyMov, JSON.stringify(movements));
+            products.push(newProduct);
+            movements.push(newMovement);
+            localStorage.setItem(storageKeyProd, JSON.stringify(products));
+            localStorage.setItem(storageKeyMov, JSON.stringify(movements));
+        }
         
         onBack();
     };
@@ -128,28 +219,32 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
             {/* Custom Nav */}
             <div className="flex items-center justify-between py-4 sticky top-0 z-20 bg-slate-50 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 mb-6 transition-colors">
                 <button onClick={onBack} className="text-orange-500 font-medium text-sm">Cancelar</button>
-                <h1 className="font-bold text-slate-900 dark:text-white text-base">Nuevo Producto</h1>
-                <button onClick={handleSave} className="bg-orange-500 text-white px-4 py-1.5 rounded-full font-bold text-xs">Guardar</button>
+                <h1 className="font-bold text-slate-900 dark:text-white text-base">{editProduct ? 'Editar Producto' : 'Nuevo Producto'}</h1>
+                <button onClick={handleSave} className="bg-orange-500 text-white px-4 py-1.5 rounded-full font-bold text-xs">
+                    {editProduct ? 'Actualizar' : 'Guardar'}
+                </button>
             </div>
 
             <div className="space-y-6">
                 
-                {/* Switch to Import */}
-                <div 
-                    onClick={onImportClick}
-                    className="bg-orange-50 border border-orange-200 dark:bg-orange-900/20 dark:border-orange-500/30 rounded-xl p-3 flex items-center justify-between cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="bg-orange-500 text-white p-2 rounded-lg">
-                            <Tag size={16} />
+                {/* Switch to Import (Only if new) */}
+                {!editProduct && (
+                    <div 
+                        onClick={onImportClick}
+                        className="bg-orange-50 border border-orange-200 dark:bg-orange-900/20 dark:border-orange-500/30 rounded-xl p-3 flex items-center justify-between cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="bg-orange-500 text-white p-2 rounded-lg">
+                                <Tag size={16} />
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">Importación Masiva</p>
+                                <p className="text-xs text-orange-600 dark:text-orange-300">Cargar vía archivo .TXT</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-sm font-bold text-slate-900 dark:text-white">Importación Masiva</p>
-                            <p className="text-xs text-orange-600 dark:text-orange-300">Cargar vía archivo .TXT</p>
-                        </div>
+                        <ChevronRight size={16} className="text-orange-400" />
                     </div>
-                    <ChevronRight size={16} className="text-orange-400" />
-                </div>
+                )}
 
                 {/* General Info */}
                 <section className="space-y-3">
@@ -165,14 +260,20 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                                 placeholder="ej. Auriculares Inalámbricos" 
                             />
                         </div>
-                         <div className="p-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
-                            <label className="block text-xs font-medium text-slate-400">Cantidad Inicial</label>
-                            <div className="flex items-center gap-3">
-                                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"><Minus size={16}/></button>
-                                <span className="text-xl font-bold text-slate-900 dark:text-white w-8 text-center">{quantity}</span>
-                                <button onClick={() => setQuantity(quantity + 1)} className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white hover:bg-orange-600 transition-colors"><Plus size={16}/></button>
+                         {!editProduct && (
+                             <div className="p-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
+                                <label className="block text-xs font-medium text-slate-400">Cantidad Inicial</label>
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="number"
+                                        value={quantity}
+                                        onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
+                                        className="w-20 bg-slate-100 dark:bg-slate-700 rounded-lg p-2 text-center text-slate-900 dark:text-white font-bold outline-none"
+                                    />
+                                    <span className="text-xs text-slate-500">unid.</span>
+                                </div>
                             </div>
-                        </div>
+                         )}
                         <div className="p-4">
                             <label className="block text-xs font-medium text-slate-400 mb-1">Categoría</label>
                             <select 
@@ -211,15 +312,43 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                                 </div>
                             </div>
                             
-                            <div className="p-4 bg-slate-50 dark:bg-slate-900/30 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <Truck size={18} className="text-orange-500" />
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-white">Prorrateo Gastos</label>
-                                        <p className="text-[10px] text-slate-500">{(proratedCost > 0 ? 'Aplicado por valor' : 'Sin impacto significativo')}</p>
+                            <div className="p-4 bg-slate-50 dark:bg-slate-900/30 flex flex-col gap-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <Truck size={18} className="text-orange-500" />
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-white">Prorrateo Gastos</label>
+                                            <p className="text-[10px] text-slate-500">
+                                                {selectedExpenses.length} seleccionados
+                                            </p>
+                                        </div>
                                     </div>
+                                    <span className="font-bold text-orange-500 text-sm">+${proratedCost.toFixed(2)}</span>
                                 </div>
-                                <span className="font-bold text-orange-500 text-sm">+${proratedCost.toFixed(2)}</span>
+                                
+                                {/* Expense Selection Toggles */}
+                                {availableExpenses.length > 0 && (
+                                    <div className="pl-8 space-y-2 mt-2 border-l-2 border-slate-200 dark:border-slate-700 ml-2">
+                                        {availableExpenses.map(exp => {
+                                            const isSelected = selectedExpenses.includes(exp.id);
+                                            return (
+                                                <div 
+                                                    key={exp.id} 
+                                                    onClick={() => toggleExpense(exp.id)}
+                                                    className="flex items-center justify-between cursor-pointer group"
+                                                >
+                                                    <span className={`text-[10px] ${isSelected ? 'text-slate-700 dark:text-slate-300 font-bold' : 'text-slate-400 line-through'}`}>
+                                                        {exp.label} {exp.id === 'transport' ? `(${exp.date})` : ''}
+                                                    </span>
+                                                    {isSelected 
+                                                        ? <CheckSquare size={12} className="text-orange-500" /> 
+                                                        : <Square size={12} className="text-slate-300" />
+                                                    }
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                             
                             <div className="p-4 bg-slate-50 dark:bg-slate-900/30 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
@@ -227,7 +356,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                                     <Percent size={18} className="text-blue-500" />
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-white">Impuestos</label>
-                                        <p className="text-[10px] text-slate-500">Total Impuestos Configurados</p>
+                                        <p className="text-[10px] text-slate-500">Calculado sobre venta</p>
                                     </div>
                                 </div>
                                 <span className="font-bold text-blue-500 text-sm">+${totalTaxAmount.toFixed(2)}</span>

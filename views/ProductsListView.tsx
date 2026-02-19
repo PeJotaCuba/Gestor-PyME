@@ -1,13 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, History, X, TrendingUp, TrendingDown, Download, Edit2, Save } from 'lucide-react';
+import { Package, Plus, History, X, TrendingUp, TrendingDown, Edit2 } from 'lucide-react';
 import { Product, StockMovement } from '../types';
 
 interface ProductsListViewProps {
   businessName: string;
+  onAddNew: () => void;
+  onEditProduct: (product: Product) => void;
 }
 
-export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName }) => {
+export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName, onAddNew, onEditProduct }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   
@@ -20,12 +22,6 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
   const [stockInput, setStockInput] = useState('');
   const [viewingHistoryId, setViewingHistoryId] = useState<number | null>(null);
   
-  // Edit Product Modal State
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editPrice, setEditPrice] = useState('');
-  const [editSale, setEditSale] = useState('');
-
   useEffect(() => {
     loadData();
   }, [businessName]);
@@ -65,33 +61,6 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
       setStockInput('');
   };
 
-  const openEditProduct = (prod: Product) => {
-      setEditingProduct(prod);
-      setEditName(prod.name);
-      setEditPrice(prod.price.toString());
-      setEditSale(prod.sale.toString());
-  };
-
-  const saveEditedProduct = () => {
-      if (!editingProduct) return;
-      
-      const updatedProducts = products.map(p => {
-          if (p.id === editingProduct.id) {
-              return {
-                  ...p,
-                  name: editName,
-                  price: parseFloat(editPrice) || 0,
-                  sale: parseFloat(editSale) || 0
-              };
-          }
-          return p;
-      });
-
-      localStorage.setItem(storageKeyProd, JSON.stringify(updatedProducts));
-      setProducts(updatedProducts);
-      setEditingProduct(null);
-  };
-
   return (
     <div className="flex flex-col h-full space-y-6 pb-24">
       {/* Header */}
@@ -100,6 +69,13 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
               <Package className="text-orange-500" />
               Inventario
           </h2>
+          <button 
+              onClick={onAddNew} 
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-xl font-bold text-sm hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/20"
+          >
+              <Plus size={18} />
+              Nuevo Producto
+          </button>
       </div>
 
       {/* Product List */}
@@ -114,9 +90,9 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
                               <span className="bg-slate-100 dark:bg-slate-700 text-xs px-2 py-1 rounded text-slate-600 dark:text-slate-300 print:border print:bg-white print:text-black">{product.category || 'General'}</span>
                           </div>
                           
-                          {/* Edit Button */}
+                          {/* Edit Button -> Now redirects to full edit view */}
                           <button 
-                             onClick={() => openEditProduct(product)}
+                             onClick={() => onEditProduct(product)}
                              className="absolute top-0 right-0 p-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:text-white print:hidden"
                           >
                               <Edit2 size={14} />
@@ -127,8 +103,8 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
                               <span className="text-sm text-slate-500 font-medium print:text-black">en stock</span>
                           </div>
                           <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400 mb-4 print:text-black">
-                              <div>Costo: ${product.price + product.transport}</div>
-                              <div>Venta: ${product.sale}</div>
+                              <div>Costo: ${ (product.price + product.transport).toFixed(2) }</div>
+                              <div>Venta: ${ product.sale.toFixed(2) }</div>
                           </div>
                       </div>
 
@@ -169,54 +145,6 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
                   <div className="flex gap-3">
                       <button onClick={() => setEditingStockId(null)} className="flex-1 py-3 rounded-xl font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700">Cancelar</button>
                       <button onClick={handleAddStock} className="flex-1 py-3 rounded-xl font-bold text-white bg-orange-500 hover:bg-orange-600">Guardar</button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* Edit Product Modal */}
-      {editingProduct && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 print:hidden">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl w-full max-w-sm animate-in fade-in zoom-in shadow-xl">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Editar Producto</h3>
-                  
-                  <div className="space-y-4">
-                      <div>
-                          <label className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">Nombre</label>
-                          <input 
-                              type="text" 
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-3 text-slate-900 dark:text-white outline-none"
-                          />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                          <div>
-                              <label className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">Costo Base</label>
-                              <input 
-                                  type="number" 
-                                  value={editPrice}
-                                  onChange={(e) => setEditPrice(e.target.value)}
-                                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-3 text-slate-900 dark:text-white outline-none"
-                              />
-                          </div>
-                          <div>
-                              <label className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">Precio Venta</label>
-                              <input 
-                                  type="number" 
-                                  value={editSale}
-                                  onChange={(e) => setEditSale(e.target.value)}
-                                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-3 text-slate-900 dark:text-white outline-none"
-                              />
-                          </div>
-                      </div>
-                  </div>
-
-                  <div className="flex gap-3 mt-6">
-                      <button onClick={() => setEditingProduct(null)} className="flex-1 py-3 rounded-xl font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700">Cancelar</button>
-                      <button onClick={saveEditedProduct} className="flex-1 py-3 rounded-xl font-bold text-white bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2">
-                          <Save size={16} /> Guardar
-                      </button>
                   </div>
               </div>
           </div>

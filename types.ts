@@ -54,6 +54,7 @@ export interface Product {
   date: string;
   stock?: number;
   applicableExpenses?: string[]; // List of expense IDs applied to this product
+  isConsolidated?: boolean; // If true, cost is not recalculated automatically
 }
 
 export interface StockMovement {

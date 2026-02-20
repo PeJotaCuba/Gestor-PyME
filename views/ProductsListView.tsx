@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, History, X, TrendingUp, TrendingDown, Edit2 } from 'lucide-react';
+import { Package, Plus, History, X, TrendingUp, TrendingDown, Edit2, Lock, Unlock } from 'lucide-react';
 import { Product, StockMovement } from '../types';
 
 interface ProductsListViewProps {
@@ -61,6 +61,17 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
       setStockInput('');
   };
 
+  const toggleConsolidated = (product: Product) => {
+      const updatedProducts = products.map(p => {
+          if (p.id === product.id) {
+              return { ...p, isConsolidated: !p.isConsolidated };
+          }
+          return p;
+      });
+      setProducts(updatedProducts);
+      localStorage.setItem(storageKeyProd, JSON.stringify(updatedProducts));
+  };
+
   return (
     <div className="flex flex-col h-full space-y-6 pb-24">
       {/* Header */}
@@ -87,17 +98,23 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
                       <div className="relative">
                           <div className="flex justify-between items-start mb-2">
                               <h3 className="font-bold text-slate-900 dark:text-white text-lg print:text-black">{product.name}</h3>
-                              <span className="bg-slate-100 dark:bg-slate-700 text-xs px-2 py-1 rounded text-slate-600 dark:text-slate-300 print:border print:bg-white print:text-black">{product.category || 'General'}</span>
+                              <div className="flex gap-2">
+                                  <button
+                                      onClick={() => toggleConsolidated(product)}
+                                      className={`p-2 rounded-lg transition-colors ${product.isConsolidated ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500'}`}
+                                      title={product.isConsolidated ? "Precio Consolidado (Fijo)" : "Precio Dinámico"}
+                                  >
+                                      {product.isConsolidated ? <Lock size={14} /> : <Unlock size={14} />}
+                                  </button>
+                                  <button 
+                                      onClick={() => onEditProduct(product)}
+                                      className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:text-white print:hidden"
+                                  >
+                                      <Edit2 size={14} />
+                                  </button>
+                              </div>
                           </div>
                           
-                          {/* Edit Button -> Now redirects to full edit view */}
-                          <button 
-                             onClick={() => onEditProduct(product)}
-                             className="absolute top-0 right-0 p-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:text-white print:hidden"
-                          >
-                              <Edit2 size={14} />
-                          </button>
-
                           <div className="flex items-baseline gap-1 mb-4">
                               <span className="text-3xl font-extrabold text-orange-500 print:text-black">{currentStock}</span>
                               <span className="text-sm text-slate-500 font-medium print:text-black">en stock</span>
@@ -105,6 +122,12 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
                           <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400 mb-4 print:text-black">
                               <div>Costo: ${ (product.price + product.transport).toFixed(2) }</div>
                               <div>Venta: ${ product.sale.toFixed(2) }</div>
+                          </div>
+                          
+                          <div className="mb-3">
+                              <span className="bg-slate-100 dark:bg-slate-700 text-xs px-2 py-1 rounded text-slate-600 dark:text-slate-300 print:border print:bg-white print:text-black">
+                                  {product.category || 'General'}
+                              </span>
                           </div>
                       </div>
 

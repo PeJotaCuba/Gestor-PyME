@@ -175,6 +175,7 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
 
         // 4. Update Each Product
         const updatedProducts = products.map(product => {
+            if (product.isConsolidated) return product; // Skip consolidated
             const stock = productStocks.get(product.id) || 1;
             let totalApplicableFixedExpenses = 0;
             const productDate = new Date(product.date).toISOString().split('T')[0];

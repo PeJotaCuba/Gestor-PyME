@@ -264,6 +264,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
 
         const updatedProducts = products.map(product => {
             if (product.id === targetId) return product; // Already updated precisely
+            if (product.isConsolidated) return product; // Skip consolidated
 
             const stock = productStocks.get(product.id) || 1;
             let totalApplicableFixedExpenses = 0;

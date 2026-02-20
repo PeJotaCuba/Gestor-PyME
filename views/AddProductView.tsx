@@ -122,8 +122,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         setProratedCost(finalProration);
 
         // 7. Calculate Taxes & Final Cost
-        // User Logic: Final Cost = Initial + Proration + Tax. 
-        // Then Price = Final Cost / (1 - Margin).
+        // Logic: Cost Base (Purchase + Proration) -> + Tax Amount -> Final Cost
         
         let totalTaxPercent = 0;
         if (expenses.taxes && expenses.taxes.taxList) {
@@ -138,19 +137,19 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
 
         const baseCost = purchasePrice + finalProration;
         
-        // Calculate Tax Amount based on Base Cost to add it to the Final Cost
+        // Calculate Tax Amount based on Base Cost
         const calculatedTax = Math.round((baseCost * (totalTaxPercent / 100)) * 100) / 100;
         setTotalTaxAmount(calculatedTax);
 
         const calculatedFinalCost = baseCost + calculatedTax;
         setFinalCost(calculatedFinalCost);
 
-        // 8. Calculate Sale Price based on Margin applied to Final Cost
+        // 8. Calculate Sale Price based on Markup (Costo * 1.Margen)
         if (!isManualPrice) {
-            // Price = Cost / (1 - Margin%)
-            // Avoid division by zero
-            const safeMargin = margin >= 100 ? 99 : margin;
-            const calculatedPrice = calculatedFinalCost / (1 - (safeMargin / 100));
+            // Formula requested: Cost * (1 + Margin%)
+            // Example: 361.80 * 1.30 = 470.34
+            const markupFactor = 1 + (margin / 100);
+            const calculatedPrice = calculatedFinalCost * markupFactor;
             setManualSalePrice(Math.round(calculatedPrice * 100) / 100);
         }
 
@@ -382,13 +381,13 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                         <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700/50 shadow-sm space-y-6 transition-colors">
                             <div>
                                 <div className="flex justify-between items-center mb-4">
-                                    <label className="text-sm font-semibold text-slate-700 dark:text-white">Margen de Ganancia</label>
+                                    <label className="text-sm font-semibold text-slate-700 dark:text-white">Margen Comercial</label>
                                     <span className="text-orange-500 font-bold text-lg">{margin}%</span>
                                 </div>
                                 <input 
                                     type="range" 
                                     min="0" 
-                                    max="99" 
+                                    max="300" 
                                     value={margin}
                                     onChange={(e) => { setMargin(parseInt(e.target.value)); setIsManualPrice(false); }}
                                     className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500" 
@@ -423,7 +422,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                                 className="bg-transparent border-none text-white w-full outline-none p-0 ml-1 font-bold"
                             />
                         </div>
-                        <p className="text-[10px] mt-1 opacity-70">Calculado: Costo Final / (1 - Margen)</p>
+                        <p className="text-[10px] mt-1 opacity-70">Calculado: Costo Final x (1 + Margen)</p>
                     </div>
                 </div>
 

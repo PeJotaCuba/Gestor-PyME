@@ -194,34 +194,31 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
                 }
             });
 
-            // Calculate Weighted Factor & Proration
+            // Reconstruct OLD Cost Structure to deduce Margin
+            const oldBaseCost = product.price + (product.transport || 0);
+            const oldTaxAmount = (oldBaseCost * (totalTaxPercent / 100)); // Approx using current tax rate
+            const oldFinalCost = oldBaseCost + oldTaxAmount;
+            
+            // Deduce current Markup (Sale / Cost)
+            let markupFactor = 1.3; // Default 30%
+            if (oldFinalCost > 0 && product.sale > 0) {
+                markupFactor = product.sale / oldFinalCost;
+            }
+            if (markupFactor < 1) markupFactor = 1.3; // Reset if invalid
+
+            // Calculate NEW Proration
             const productTotalValue = product.price * stock;
             const allocationFactor = productTotalValue / totalInventoryValue;
             const batchShare = totalApplicableFixedExpenses * allocationFactor;
             const newProratedCost = Math.round((batchShare / stock) * 100) / 100;
             
-            // Recalculate Prices
-            const baseCost = product.price + newProratedCost;
-            
-            // Tax calculated on Base Cost
-            const taxAmount = Math.round((baseCost * (totalTaxPercent / 100)) * 100) / 100;
-            const finalCost = baseCost + taxAmount;
+            // Calculate NEW Final Cost
+            const newBaseCost = product.price + newProratedCost;
+            const newTaxAmount = Math.round((newBaseCost * (totalTaxPercent / 100)) * 100) / 100;
+            const newFinalCost = newBaseCost + newTaxAmount;
 
-            // Try to maintain margin if possible, else default to 30%
-            // Reverse margin from old sale price: Margin = 1 - (OldFinalCost / OldSale)
-            // But we don't store old final cost explicitly. 
-            // Approximation: 
-            let margin = 0.30; 
-            if (product.sale > 0 && finalCost > 0) {
-                 // Prevent margin calculation if sale < cost (negative margin)
-                 if (product.sale > finalCost) {
-                     margin = 1 - (finalCost / product.sale);
-                 }
-            }
-            if (margin < 0) margin = 0.3;
-            if (margin >= 1) margin = 0.99; // Cap margin
-
-            const newSalePrice = Math.round((finalCost / (1 - margin)) * 100) / 100;
+            // Apply Markup
+            const newSalePrice = Math.round((newFinalCost * markupFactor) * 100) / 100;
 
             return {
                 ...product,

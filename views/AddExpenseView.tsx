@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Home, Zap, CreditCard, Wifi, Droplets, Settings, Info, CheckCircle, Lightbulb, ChevronLeft, ChevronRight, Plus, Truck, Megaphone, Percent, Trash2, Edit2 } from 'lucide-react';
-import { Product } from '../types';
+import { Product, StockMovement } from '../types';
 
 interface AddExpenseViewProps {
     onBack: () => void;
@@ -133,16 +133,30 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
     // --- RECALCULATION LOGIC ---
     const recalculateProductCosts = (newExpenses: Record<string, ExpenseData>) => {
         const storageKeyProd = `Gestor_${businessName.replace(/\s+/g, '_')}_products`;
-        const products: Product[] = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
+        const storageKeyMov = `Gestor_${businessName.replace(/\s+/g, '_')}_movements`;
         
-        // 1. Calculate Total Inventory Value (needed for proration factors)
-        // We approximate this for the calculation. In a real scenario, this is complex.
+        const products: Product[] = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
+        const movements: StockMovement[] = JSON.parse(localStorage.getItem(storageKeyMov) || '[]');
+        
+        // 1. Calculate Total Inventory Value
+        // Note: For existing products, we must use their STOCK to get the weighted value properly.
         let totalInventoryValue = 0;
+        
+        // Map to store current stock for each product to avoid re-filtering
+        const productStocks = new Map<number, number>();
+
         products.forEach(p => {
-             // For proration factor, we usually use purchase price * stock (or just purchase price depending on method)
-             // Using purchase price as factor base as per AddProductView logic
-             totalInventoryValue += p.price; 
+             const inQty = movements.filter(m => m.productId === p.id && m.type === 'IN').reduce((sum, m) => sum + m.quantity, 0);
+             const outQty = movements.filter(m => m.productId === p.id && m.type === 'OUT').reduce((sum, m) => sum + m.quantity, 0);
+             const stock = inQty - outQty;
+             
+             productStocks.set(p.id, stock > 0 ? stock : 1); // Use 1 if stock 0 to allow calculation potential
+             
+             if (stock > 0) {
+                 totalInventoryValue += (stock * p.price);
+             }
         });
+        
         if (totalInventoryValue === 0) totalInventoryValue = 1;
 
         // 2. Prepare Expense List
@@ -164,17 +178,16 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
 
         // 4. Update Each Product
         const updatedProducts = products.map(product => {
+            const stock = productStocks.get(product.id) || 1;
             let totalApplicableFixedExpenses = 0;
             const productDate = new Date(product.date).toISOString().split('T')[0];
             
             // Determine Applicable Expenses
-            // If legacy product (no applicableExpenses field), assume ALL fixed + transport check
             const productExpenses = product.applicableExpenses || expenseList.map(e => e.id);
 
             expenseList.forEach(exp => {
                 if (productExpenses.includes(exp.id)) {
                     if (exp.id === 'transport') {
-                        // Strict date match for transport
                         if (exp.date === productDate) {
                             totalApplicableFixedExpenses += parseFloat(exp.amount);
                         }
@@ -184,46 +197,34 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
                 }
             });
 
-            // Calculate Factor
-            // Note: This logic mirrors AddProductView. 
-            // Ideally, proration divides expenses across ALL products. 
-            // Simple logic used here: Factor = Price / TotalValue (Weighted average)
-            const allocationFactor = product.price / totalInventoryValue;
+            // Calculate Weighted Factor
+            // Weight = (Price * Stock) / TotalInventoryValue
+            const productTotalValue = product.price * stock;
+            const allocationFactor = productTotalValue / totalInventoryValue;
             
-            // If we use the AddProduct logic exactly:
-            // "calculatedProration = totalFixedExpenses * allocationFactor"
-            // But usually fixed expenses are MONTHLY totals divided by product units... 
-            // To stick to current app logic which adds a *portion* of expense to unit cost:
-            const newProratedCost = Math.round((totalApplicableFixedExpenses * allocationFactor) * 100) / 100;
+            // Calculate Unit Proration
+            // Total Share = TotalExpenses * Factor
+            // Unit Share = Total Share / Stock
+            const batchShare = totalApplicableFixedExpenses * allocationFactor;
+            const newProratedCost = Math.round((batchShare / stock) * 100) / 100;
             
-            // Recalculate Sale Price (Maintaining margin if possible, or updating cost)
-            // Assuming we update cost and keep sale price, margin changes? 
-            // OR update cost and update sale price to maintain margin?
-            // Usually, if costs go up, price goes up.
-            
-            // Reverse engineer margin from current sale price?
-            // Margin = (Sale - Cost) / Sale  -> No, app uses Cost / (1 - Margin)
-            // Let's assume a fixed margin or try to keep the margin the product had.
-            // If product has no saved margin, assume 30%.
-            
+            // Recalculate Prices
             const oldBaseCost = product.price + (product.transport || 0);
-            let margin = 0.30; // Default 30%
+            
+            // Try to maintain margin if possible, else default to 30%
+            let margin = 0.30; 
             if (product.sale > 0 && oldBaseCost > 0) {
-                 // Sale = Cost / (1 - Margin)  => 1 - Margin = Cost / Sale => Margin = 1 - (Cost/Sale)
-                 // However, taxes are added AFTER.
-                 // App logic: ProvPrice = Base / (1-M); Tax = Prov * T%; Final = Prov + Tax = Prov * (1+T%)
-                 // Final = (Base / (1-M)) * (1+T%)
-                 // Base / (1-M) = Final / (1+T%)
-                 // 1-M = Base / (Final / (1+T%))
-                 const oldTaxRate = totalTaxPercent / 100; // Using NEW tax rate might shift margin calc, but let's try.
+                 const oldTaxRate = totalTaxPercent / 100;
                  const priceBeforeTax = product.sale / (1 + oldTaxRate);
                  margin = 1 - (oldBaseCost / priceBeforeTax);
             }
-            if (margin < 0) margin = 0.3; // Fallback
+            if (margin < 0) margin = 0.3;
 
             const newBaseCost = product.price + newProratedCost;
             const newProvisionalPrice = newBaseCost / (1 - margin);
             const newTax = Math.round((newProvisionalPrice * (totalTaxPercent / 100)) * 100) / 100;
+            
+            // Final Sale Price (Includes tax)
             const newSalePrice = Math.round((newProvisionalPrice + newTax) * 100) / 100;
 
             return {

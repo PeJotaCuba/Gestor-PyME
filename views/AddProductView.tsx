@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Tag, Percent, Truck, Check, CheckSquare, Square } from 'lucide-react';
+import { ChevronRight, Tag, Percent, Truck, CheckSquare, Square } from 'lucide-react';
 import { Product, StockMovement } from '../types';
 
 interface AddProductViewProps {
@@ -15,10 +15,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
     const [category, setCategory] = useState(editProduct ? editProduct.category || 'General' : 'General');
     const [purchasePrice, setPurchasePrice] = useState<number>(editProduct ? editProduct.price : 0);
     
-    // Initial qty logic: if editing, we might not change initial stock easily, but user requested editable input. 
-    // We will default to 1 for new, or 0 if edit (to add more) or handle existing.
-    // Simplifying: If editing, this acts as "Adjust Quantity" or reset if re-calculating cost.
-    // For simplicity based on request: "Introduction of initial quantity... manually writing".
+    // Quantity is editable and affects proration weight
     const [quantity, setQuantity] = useState<number>(editProduct && editProduct.stock ? editProduct.stock : 1);
     
     const [margin, setMargin] = useState<number>(30);
@@ -32,6 +29,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
     // Calculated Costs
     const [proratedCost, setProratedCost] = useState<number>(0);
     const [totalTaxAmount, setTotalTaxAmount] = useState<number>(0);
+    const [inventoryWeight, setInventoryWeight] = useState<number>(0); // To display the % representation
 
     // Initialize Expenses
     useEffect(() => {
@@ -49,101 +47,119 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         });
         setAvailableExpenses(expenseList);
 
-        // If editing, use saved selection or default to all. If new, default to all.
         if (editProduct && editProduct.applicableExpenses) {
             setSelectedExpenses(editProduct.applicableExpenses);
         } else {
              // Default: Select all relevant expenses
-             // Rule: Transport is ONLY selected if dates match, but for a NEW product we assume "today" matches "today" if configured.
-             // However, strictly adhering to the "checkbox" request, we default check all fixed ones.
-             // Transport logic is specific: Cost applies if checked AND dates match.
              setSelectedExpenses(expenseList.map(e => e.id));
         }
     }, [businessName, editProduct]);
 
-    // Calculate Everything
+    // --- CORE COST CALCULATION LOGIC ---
     useEffect(() => {
         if (purchasePrice < 0) return;
 
+        // 1. Load Data
+        const storageKeyProd = `Gestor_${businessName.replace(/\s+/g, '_')}_products`;
+        const storageKeyMov = `Gestor_${businessName.replace(/\s+/g, '_')}_movements`;
         const storageKeyExp = `Gestor_${businessName.replace(/\s+/g, '_')}_expenses`;
-        const expenses: Record<string, any> = JSON.parse(localStorage.getItem(storageKeyExp) || '{}');
         
-        // 1. Calculate Taxes
+        const products: Product[] = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
+        const movements: StockMovement[] = JSON.parse(localStorage.getItem(storageKeyMov) || '[]');
+        const expenses: Record<string, any> = JSON.parse(localStorage.getItem(storageKeyExp) || '{}');
+
+        // 2. Calculate Total Existing Inventory Value (excluding current product if editing)
+        let existingInventoryValue = 0;
+        products.forEach(p => {
+             // If we are editing, we ignore the OLD version of this product in the sum
+             // to recalculate with the NEW values (price/qty)
+             if (editProduct && p.id === editProduct.id) return;
+
+             const inQty = movements.filter(m => m.productId === p.id && m.type === 'IN').reduce((sum, m) => sum + m.quantity, 0);
+             const outQty = movements.filter(m => m.productId === p.id && m.type === 'OUT').reduce((sum, m) => sum + m.quantity, 0);
+             const stock = inQty - outQty;
+             
+             if (stock > 0) {
+                 existingInventoryValue += (stock * p.price);
+             }
+        });
+
+        // 3. Calculate Current Batch Value
+        // If quantity is 0 (edge case), assume 1 for weight calculation to avoid NaN
+        const calcQty = quantity > 0 ? quantity : 1;
+        const currentBatchValue = purchasePrice * calcQty;
+        
+        // 4. Total Projected Inventory Value
+        const totalInventoryValue = existingInventoryValue + currentBatchValue;
+        
+        // 5. Calculate Weight Factor (The % this product represents in total inventory)
+        // Factor = (Price * Qty) / TotalInventoryValue
+        let allocationFactor = 0;
+        if (totalInventoryValue > 0) {
+            allocationFactor = currentBatchValue / totalInventoryValue;
+        } else {
+            allocationFactor = 1; // It's the only thing in inventory
+        }
+        setInventoryWeight(allocationFactor * 100);
+
+        // 6. Calculate Proration
+        let totalApplicableFixedExpenses = 0;
+        const productDate = editProduct ? new Date(editProduct.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
+        availableExpenses.forEach(exp => {
+            if (selectedExpenses.includes(exp.id)) {
+                if (exp.id === 'transport') {
+                    // Transport applies if dates match
+                    if (exp.date === productDate) {
+                        totalApplicableFixedExpenses += parseFloat(exp.amount);
+                    }
+                } else if (exp.isFixed) {
+                    // Fixed Expenses
+                    totalApplicableFixedExpenses += parseFloat(exp.amount);
+                }
+            }
+        });
+
+        // The "Share" of the expense for this BATCH
+        const batchExpenseShare = totalApplicableFixedExpenses * allocationFactor;
+        
+        // The "Unit" proration
+        const calcUnitProration = batchExpenseShare / calcQty;
+        const finalProration = Math.round(calcUnitProration * 100) / 100;
+        setProratedCost(finalProration);
+
+        // 7. Calculate Taxes & Price
         let totalTaxPercent = 0;
         if (expenses.taxes && expenses.taxes.taxList) {
              expenses.taxes.taxList.forEach((t: any) => {
                  totalTaxPercent += (parseFloat(t.percent) || 0);
              });
         } else {
+            // Fallback for legacy data
             if (expenses.taxes?.salesTax) totalTaxPercent += parseFloat(expenses.taxes.salesTax);
             if (expenses.taxes?.incomeTax) totalTaxPercent += parseFloat(expenses.taxes.incomeTax);
             if (totalTaxPercent === 0) totalTaxPercent = 20; 
         }
 
-        // 2. Calculate Proration
-        // We only sum expenses that are SELECTED by the user for this product.
-        let totalApplicableFixedExpenses = 0;
-
-        const productDate = editProduct ? new Date(editProduct.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-
-        availableExpenses.forEach(exp => {
-            if (selectedExpenses.includes(exp.id)) {
-                // Special Rule for Transport
-                if (exp.id === 'transport') {
-                    // Only apply if date matches
-                    if (exp.date === productDate) {
-                        totalApplicableFixedExpenses += parseFloat(exp.amount);
-                    }
-                } else if (exp.isFixed) {
-                    // Standard fixed expense
-                    totalApplicableFixedExpenses += parseFloat(exp.amount);
-                }
-            }
-        });
-
-        // Get Total Inventory Value for Factor
-        const storageKeyProd = `Gestor_${businessName.replace(/\s+/g, '_')}_products`;
-        const storageKeyMov = `Gestor_${businessName.replace(/\s+/g, '_')}_movements`;
-        const products: Product[] = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
-        const movements: StockMovement[] = JSON.parse(localStorage.getItem(storageKeyMov) || '[]');
-        
-        let totalInventoryValue = 0;
-        products.forEach(p => {
-             // If editing, exclude current product's OLD value to avoid circular logic or double counting?
-             // Simple approach: Use total historical value.
-             const inQty = movements.filter(m => m.productId === p.id && m.type === 'IN').reduce((sum, m) => sum + m.quantity, 0);
-             const outQty = movements.filter(m => m.productId === p.id && m.type === 'OUT').reduce((sum, m) => sum + m.quantity, 0);
-             const stock = inQty - outQty;
-             if (stock > 0) {
-                 totalInventoryValue += (stock * (p.price + (p.transport || 0)));
-             }
-        });
-
-        let allocationFactor = 0;
-        if (totalInventoryValue > 0) {
-            allocationFactor = purchasePrice / totalInventoryValue; 
-        } else {
-            allocationFactor = purchasePrice / 100000; // Fallback
-        }
-
-        // Apply Proration
-        const calcProration = totalApplicableFixedExpenses * allocationFactor;
-        
-        // Round to 2 decimals for precision
-        const finalProration = Math.round(calcProration * 100) / 100;
-        setProratedCost(finalProration);
-
         const baseCost = purchasePrice + finalProration;
+        // Formula: Price = Cost / (1 - Margin%)
         const provisionalPrice = baseCost / (1 - (margin / 100));
         
+        // Tax Amount (Cost component derived from Sale Price)
         const calculatedTax = Math.round((provisionalPrice * (totalTaxPercent / 100)) * 100) / 100;
         setTotalTaxAmount(calculatedTax);
 
         if (!isManualPrice) {
+            // Final Price = Base + Markup + Tax
+            // But usually Price includes Tax. 
+            // If Price = Cost / (1-M), that's the price BEFORE tax if tax is added later?
+            // Prompt says: "costo final suma... el por ciento aplicado de impuestos".
+            // So Final Displayed Cost = Initial + Proration + Tax.
+            // And Sale Price = Provisional + Tax.
             setManualSalePrice(Math.round((provisionalPrice + calculatedTax) * 100) / 100);
         }
 
-    }, [purchasePrice, margin, businessName, isManualPrice, availableExpenses, selectedExpenses, editProduct]);
+    }, [purchasePrice, quantity, margin, businessName, isManualPrice, availableExpenses, selectedExpenses, editProduct]);
 
     const toggleExpense = (id: string) => {
         if (selectedExpenses.includes(id)) {
@@ -173,15 +189,13 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                         price: purchasePrice,
                         transport: proratedCost,
                         sale: manualSalePrice,
-                        applicableExpenses: selectedExpenses // Save selection
+                        stock: quantity, // Update stock directly on edit if requested
+                        applicableExpenses: selectedExpenses
                     };
                 }
                 return p;
             });
             localStorage.setItem(storageKeyProd, JSON.stringify(updatedProducts));
-            
-            // Note: We are not modifying the history of movements for editing to keep it simple, 
-            // unless the user specifically wants to correct initial stock which is complex.
         } else {
             // Create New
             const newId = Date.now();
@@ -260,20 +274,20 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                                 placeholder="ej. Auriculares Inalámbricos" 
                             />
                         </div>
-                         {!editProduct && (
-                             <div className="p-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
-                                <label className="block text-xs font-medium text-slate-400">Cantidad Inicial</label>
-                                <div className="flex items-center gap-2">
-                                    <input 
-                                        type="number"
-                                        value={quantity}
-                                        onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
-                                        className="w-20 bg-slate-100 dark:bg-slate-700 rounded-lg p-2 text-center text-slate-900 dark:text-white font-bold outline-none"
-                                    />
-                                    <span className="text-xs text-slate-500">unid.</span>
-                                </div>
+                         
+                         <div className="p-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
+                            <label className="block text-xs font-medium text-slate-400">Cantidad (Stock)</label>
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="number"
+                                    value={quantity}
+                                    onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
+                                    className="w-24 bg-slate-100 dark:bg-slate-700 rounded-lg p-2 text-center text-slate-900 dark:text-white font-bold outline-none border border-transparent focus:border-orange-500"
+                                />
+                                <span className="text-xs text-slate-500">unid.</span>
                             </div>
-                         )}
+                        </div>
+                         
                         <div className="p-4">
                             <label className="block text-xs font-medium text-slate-400 mb-1">Categoría</label>
                             <select 
@@ -295,11 +309,14 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                     {/* Costs */}
                     <section className="space-y-3">
                         <div className="flex items-center justify-between px-1">
-                            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Costo Unitario</h2>
+                            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Ficha de Costo</h2>
+                            <span className="text-[10px] text-orange-500 bg-orange-500/10 px-2 py-0.5 rounded-full font-bold">
+                                Peso en Inv: {inventoryWeight.toFixed(2)}%
+                            </span>
                         </div>
                         <div className="bg-white dark:bg-slate-800/50 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700/50 shadow-sm h-full transition-colors">
                             <div className="p-4 border-b border-slate-100 dark:border-slate-700/50">
-                                <label className="block text-xs font-medium text-slate-400 mb-1">Precio de Compra</label>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">Costo Inicial (Compra)</label>
                                 <div className="flex items-center">
                                     <span className="text-slate-500 mr-1">$</span>
                                     <input 
@@ -317,9 +334,9 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                                     <div className="flex items-center gap-3">
                                         <Truck size={18} className="text-orange-500" />
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 dark:text-white">Prorrateo Gastos</label>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-white">Prorrateo Unitario</label>
                                             <p className="text-[10px] text-slate-500">
-                                                {selectedExpenses.length} seleccionados
+                                                Basado en peso del inventario
                                             </p>
                                         </div>
                                     </div>
@@ -355,8 +372,8 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                                 <div className="flex items-center gap-3">
                                     <Percent size={18} className="text-blue-500" />
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-white">Impuestos</label>
-                                        <p className="text-[10px] text-slate-500">Calculado sobre venta</p>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-white">Impuestos Aplicados</label>
+                                        <p className="text-[10px] text-slate-500">Calculado sobre precio venta</p>
                                     </div>
                                 </div>
                                 <span className="font-bold text-blue-500 text-sm">+${totalTaxAmount.toFixed(2)}</span>
@@ -389,9 +406,10 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                 {/* Landed Cost Summary */}
                 <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 flex justify-between items-center shadow-sm">
                      <div>
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-tight">Costo Total (c/Impuestos)</p>
-                        <p className="text-lg font-bold text-slate-900 dark:text-white">${(purchasePrice + proratedCost + totalTaxAmount).toFixed(2)}</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-tight">Costo Total Final</p>
+                        <p className="text-xs text-slate-400"> (Inicial + Prorrateo + Impuestos)</p>
                     </div>
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white">${(purchasePrice + proratedCost + totalTaxAmount).toFixed(2)}</p>
                 </div>
 
                 {/* Result Card */}

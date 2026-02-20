@@ -206,11 +206,9 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
             }
             if (markupFactor < 1) markupFactor = 1.3; // Reset if invalid
 
-            // Calculate NEW Proration
-            const productTotalValue = product.price * stock;
-            const allocationFactor = productTotalValue / totalInventoryValue;
-            const batchShare = totalApplicableFixedExpenses * allocationFactor;
-            const newProratedCost = Math.round((batchShare / stock) * 100) / 100;
+            // Calculate NEW Proration based on UNIT WEIGHT (1 unidad / Inventario Total)
+            const allocationFactor = product.price / totalInventoryValue;
+            const newProratedCost = Math.round((totalApplicableFixedExpenses * allocationFactor) * 100) / 100;
             
             // Calculate NEW Final Cost
             const newBaseCost = product.price + newProratedCost;

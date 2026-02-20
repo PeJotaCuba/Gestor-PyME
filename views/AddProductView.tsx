@@ -30,7 +30,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
     const [proratedCost, setProratedCost] = useState<number>(0);
     const [totalTaxAmount, setTotalTaxAmount] = useState<number>(0);
     const [finalCost, setFinalCost] = useState<number>(0);
-    const [inventoryWeight, setInventoryWeight] = useState<number>(0); // To display the % representation
+    const [inventoryWeight, setInventoryWeight] = useState<number>(0);
 
     // Initialize Expenses
     useEffect(() => {
@@ -51,7 +51,6 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         if (editProduct && editProduct.applicableExpenses) {
             setSelectedExpenses(editProduct.applicableExpenses);
         } else {
-             // Default: Select all relevant expenses
              setSelectedExpenses(expenseList.map(e => e.id));
         }
     }, [businessName, editProduct]);
@@ -70,13 +69,16 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         const expenses: Record<string, any> = JSON.parse(localStorage.getItem(storageKeyExp) || '{}');
 
         // 2. Calculate Total Existing Inventory Value
+        // Valor del inventario = sumatoria de (cantidad de productos * su costo inicial)
         let existingInventoryValue = 0;
         products.forEach(p => {
-             if (editProduct && p.id === editProduct.id) return;
-
              const inQty = movements.filter(m => m.productId === p.id && m.type === 'IN').reduce((sum, m) => sum + m.quantity, 0);
              const outQty = movements.filter(m => m.productId === p.id && m.type === 'OUT').reduce((sum, m) => sum + m.quantity, 0);
              const stock = inQty - outQty;
+             
+             // Si estamos editando un producto, ignoramos su stock anterior 
+             // ya que sumaremos el stock proyectado en el siguiente paso.
+             if (editProduct && p.id === editProduct.id) return;
              
              if (stock > 0) {
                  existingInventoryValue += (stock * p.price);
@@ -90,14 +92,14 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         // 4. Total Projected Inventory Value
         const totalInventoryValue = existingInventoryValue + currentBatchValue;
         
-        // 5. Calculate Weight Factor
-        let allocationFactor = 0;
+        // 5. Calculate Weight Factor for ONE UNIT (Peso de 1 unidad respecto al inventario total)
+        let unitWeightFactor = 0;
         if (totalInventoryValue > 0) {
-            allocationFactor = currentBatchValue / totalInventoryValue;
+            unitWeightFactor = purchasePrice / totalInventoryValue;
         } else {
-            allocationFactor = 1;
+            unitWeightFactor = 1;
         }
-        setInventoryWeight(allocationFactor * 100);
+        setInventoryWeight(unitWeightFactor * 100);
 
         // 6. Calculate Proration
         let totalApplicableFixedExpenses = 0;
@@ -115,15 +117,11 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
             }
         });
 
-        // Unit Proration
-        const batchExpenseShare = totalApplicableFixedExpenses * allocationFactor;
-        const calcUnitProration = batchExpenseShare / calcQty;
-        const finalProration = Math.round(calcUnitProration * 100) / 100;
+        // Prorrateo unitario directo = Gastos Fijos * Peso Unitario
+        const finalProration = Math.round((totalApplicableFixedExpenses * unitWeightFactor) * 100) / 100;
         setProratedCost(finalProration);
 
         // 7. Calculate Taxes & Final Cost
-        // Logic: Cost Base (Purchase + Proration) -> + Tax Amount -> Final Cost
-        
         let totalTaxPercent = 0;
         if (expenses.taxes && expenses.taxes.taxList) {
              expenses.taxes.taxList.forEach((t: any) => {
@@ -136,24 +134,29 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         }
 
         const baseCost = purchasePrice + finalProration;
-        
-        // Calculate Tax Amount based on Base Cost
         const calculatedTax = Math.round((baseCost * (totalTaxPercent / 100)) * 100) / 100;
         setTotalTaxAmount(calculatedTax);
 
         const calculatedFinalCost = baseCost + calculatedTax;
         setFinalCost(calculatedFinalCost);
 
-        // 8. Calculate Sale Price based on Markup (Costo * 1.Margen)
+        // 8. Calculate Sale Price based strictly on Markup: Final Cost * (1 + Margin)
         if (!isManualPrice) {
-            // Formula requested: Cost * (1 + Margin%)
-            // Example: 361.80 * 1.30 = 470.34
             const markupFactor = 1 + (margin / 100);
             const calculatedPrice = calculatedFinalCost * markupFactor;
             setManualSalePrice(Math.round(calculatedPrice * 100) / 100);
+        } else {
+            // Sync slider to reality: If price is held manually, deduce its actual margin
+            if (calculatedFinalCost > 0) {
+                let impliedMargin = (manualSalePrice / calculatedFinalCost) - 1;
+                impliedMargin = Math.max(0, Math.round(impliedMargin * 100)); // Clamp to 0% min
+                if (impliedMargin !== margin) {
+                    setMargin(impliedMargin);
+                }
+            }
         }
 
-    }, [purchasePrice, quantity, margin, businessName, isManualPrice, availableExpenses, selectedExpenses, editProduct]);
+    }, [purchasePrice, quantity, margin, businessName, isManualPrice, availableExpenses, selectedExpenses, editProduct, manualSalePrice]);
 
     const toggleExpense = (id: string) => {
         if (selectedExpenses.includes(id)) {
@@ -168,33 +171,47 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
 
         const storageKeyProd = `Gestor_${businessName.replace(/\s+/g, '_')}_products`;
         const storageKeyMov = `Gestor_${businessName.replace(/\s+/g, '_')}_movements`;
+        const storageKeyExp = `Gestor_${businessName.replace(/\s+/g, '_')}_expenses`;
         
-        const products: Product[] = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
-        const movements: StockMovement[] = JSON.parse(localStorage.getItem(storageKeyMov) || '[]');
+        let products: Product[] = JSON.parse(localStorage.getItem(storageKeyProd) || '[]');
+        let movements: StockMovement[] = JSON.parse(localStorage.getItem(storageKeyMov) || '[]');
+        const expenses: Record<string, any> = JSON.parse(localStorage.getItem(storageKeyExp) || '{}');
+
+        const targetId = editProduct ? editProduct.id : Date.now();
 
         if (editProduct) {
-            // Update existing
-            const updatedProducts = products.map(p => {
-                if (p.id === editProduct.id) {
-                    return {
-                        ...p,
-                        name,
-                        category,
-                        price: purchasePrice,
-                        transport: proratedCost,
-                        sale: manualSalePrice,
-                        stock: quantity,
-                        applicableExpenses: selectedExpenses
-                    };
-                }
-                return p;
-            });
-            localStorage.setItem(storageKeyProd, JSON.stringify(updatedProducts));
+            // Actualizar stock generando movimiento de ajuste si es necesario
+            const inQty = movements.filter(m => m.productId === targetId && m.type === 'IN').reduce((sum, m) => sum + m.quantity, 0);
+            const outQty = movements.filter(m => m.productId === targetId && m.type === 'OUT').reduce((sum, m) => sum + m.quantity, 0);
+            const currentStock = inQty - outQty;
+            const diff = quantity - currentStock;
+
+            if (diff !== 0) {
+                movements.push({
+                    id: Date.now() + Math.random(),
+                    productId: targetId,
+                    type: diff > 0 ? 'IN' : 'OUT',
+                    quantity: Math.abs(diff),
+                    date: new Date().toISOString(),
+                    reason: 'ADJUSTMENT'
+                });
+            }
+
+            // Update existing product
+            products = products.map(p => p.id === targetId ? {
+                ...p,
+                name,
+                category,
+                price: purchasePrice,
+                transport: proratedCost,
+                sale: manualSalePrice,
+                stock: quantity, // Deprecated, but kept for retro-compatibility
+                applicableExpenses: selectedExpenses
+            } : p);
         } else {
             // Create New
-            const newId = Date.now();
             const newProduct: Product = {
-                id: newId,
+                id: targetId,
                 name,
                 category,
                 price: purchasePrice,
@@ -203,21 +220,96 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                 date: new Date().toISOString(),
                 applicableExpenses: selectedExpenses
             };
-
             const newMovement: StockMovement = {
                 id: Date.now() + 1,
-                productId: newId,
+                productId: targetId,
                 type: 'IN',
                 quantity: quantity,
                 date: new Date().toISOString(),
                 reason: 'PROVISION'
             };
-
             products.push(newProduct);
             movements.push(newMovement);
-            localStorage.setItem(storageKeyProd, JSON.stringify(products));
-            localStorage.setItem(storageKeyMov, JSON.stringify(movements));
         }
+
+        // --- GLOBAL MASS RECALCULATION (Cascade Effect) ---
+        // Dynamically adjusts other products downwards since total inventory increased
+        
+        let totalInventoryValue = 0;
+        const productStocks = new Map<number, number>();
+
+        products.forEach(p => {
+             const inQty = movements.filter(m => m.productId === p.id && m.type === 'IN').reduce((sum, m) => sum + m.quantity, 0);
+             const outQty = movements.filter(m => m.productId === p.id && m.type === 'OUT').reduce((sum, m) => sum + m.quantity, 0);
+             const stock = inQty - outQty;
+             
+             productStocks.set(p.id, stock > 0 ? stock : 1); 
+             if (stock > 0) totalInventoryValue += (stock * p.price);
+        });
+        
+        if (totalInventoryValue === 0) totalInventoryValue = 1;
+
+        const expenseList: any[] = [];
+        Object.entries(expenses).forEach(([key, val]: [string, any]) => {
+            if (key !== 'taxes' && val.amount) {
+                const amount = parseFloat(val.amount);
+                if (!isNaN(amount) && amount > 0) expenseList.push({ id: key, ...val });
+            }
+        });
+
+        let totalTaxPercent = 0;
+        if (expenses.taxes && expenses.taxes.taxList) {
+             expenses.taxes.taxList.forEach((t: any) => totalTaxPercent += (parseFloat(t.percent) || 0));
+        }
+
+        const updatedProducts = products.map(product => {
+            if (product.id === targetId) return product; // Already updated precisely
+
+            const stock = productStocks.get(product.id) || 1;
+            let totalApplicableFixedExpenses = 0;
+            const productDate = new Date(product.date).toISOString().split('T')[0];
+            const productExpenses = product.applicableExpenses || expenseList.map(e => e.id);
+
+            expenseList.forEach(exp => {
+                if (productExpenses.includes(exp.id)) {
+                    if (exp.id === 'transport') {
+                        if (exp.date === productDate) totalApplicableFixedExpenses += parseFloat(exp.amount);
+                    } else if (exp.isFixed) {
+                        totalApplicableFixedExpenses += parseFloat(exp.amount);
+                    }
+                }
+            });
+
+            // Deduce markup history
+            const oldBaseCost = product.price + (product.transport || 0);
+            const oldTaxAmount = Math.round((oldBaseCost * (totalTaxPercent / 100)) * 100) / 100;
+            const oldFinalCost = oldBaseCost + oldTaxAmount;
+            
+            let markupFactor = 1.3;
+            if (oldFinalCost > 0 && product.sale > 0) {
+                markupFactor = product.sale / oldFinalCost;
+            }
+            if (markupFactor < 1) markupFactor = 1.3;
+
+            // New Proration Share based on UNIT WEIGHT (1 unidad / Inventario Total)
+            const allocationFactor = product.price / totalInventoryValue;
+            const newProratedCost = Math.round((totalApplicableFixedExpenses * allocationFactor) * 100) / 100;
+            
+            const newBaseCost = product.price + newProratedCost;
+            const newTaxAmount = Math.round((newBaseCost * (totalTaxPercent / 100)) * 100) / 100;
+            const newFinalCost = newBaseCost + newTaxAmount;
+
+            const newSalePrice = Math.round((newFinalCost * markupFactor) * 100) / 100;
+
+            return {
+                ...product,
+                transport: newProratedCost,
+                sale: newSalePrice
+            };
+        });
+
+        localStorage.setItem(storageKeyProd, JSON.stringify(updatedProducts));
+        localStorage.setItem(storageKeyMov, JSON.stringify(movements));
         
         onBack();
     };
@@ -305,7 +397,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                         <div className="flex items-center justify-between px-1">
                             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Ficha de Costo</h2>
                             <span className="text-[10px] text-orange-500 bg-orange-500/10 px-2 py-0.5 rounded-full font-bold">
-                                Peso en Inv: {inventoryWeight.toFixed(2)}%
+                                Peso Unitario: {inventoryWeight.toFixed(4)}%
                             </span>
                         </div>
                         <div className="bg-white dark:bg-slate-800/50 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700/50 shadow-sm h-full transition-colors">

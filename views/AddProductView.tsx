@@ -29,6 +29,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
     // Calculated Costs
     const [proratedCost, setProratedCost] = useState<number>(0);
     const [totalTaxAmount, setTotalTaxAmount] = useState<number>(0);
+    const [finalCost, setFinalCost] = useState<number>(0);
     const [inventoryWeight, setInventoryWeight] = useState<number>(0); // To display the % representation
 
     // Initialize Expenses
@@ -68,11 +69,9 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         const movements: StockMovement[] = JSON.parse(localStorage.getItem(storageKeyMov) || '[]');
         const expenses: Record<string, any> = JSON.parse(localStorage.getItem(storageKeyExp) || '{}');
 
-        // 2. Calculate Total Existing Inventory Value (excluding current product if editing)
+        // 2. Calculate Total Existing Inventory Value
         let existingInventoryValue = 0;
         products.forEach(p => {
-             // If we are editing, we ignore the OLD version of this product in the sum
-             // to recalculate with the NEW values (price/qty)
              if (editProduct && p.id === editProduct.id) return;
 
              const inQty = movements.filter(m => m.productId === p.id && m.type === 'IN').reduce((sum, m) => sum + m.quantity, 0);
@@ -85,20 +84,18 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         });
 
         // 3. Calculate Current Batch Value
-        // If quantity is 0 (edge case), assume 1 for weight calculation to avoid NaN
         const calcQty = quantity > 0 ? quantity : 1;
         const currentBatchValue = purchasePrice * calcQty;
         
         // 4. Total Projected Inventory Value
         const totalInventoryValue = existingInventoryValue + currentBatchValue;
         
-        // 5. Calculate Weight Factor (The % this product represents in total inventory)
-        // Factor = (Price * Qty) / TotalInventoryValue
+        // 5. Calculate Weight Factor
         let allocationFactor = 0;
         if (totalInventoryValue > 0) {
             allocationFactor = currentBatchValue / totalInventoryValue;
         } else {
-            allocationFactor = 1; // It's the only thing in inventory
+            allocationFactor = 1;
         }
         setInventoryWeight(allocationFactor * 100);
 
@@ -109,54 +106,52 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
         availableExpenses.forEach(exp => {
             if (selectedExpenses.includes(exp.id)) {
                 if (exp.id === 'transport') {
-                    // Transport applies if dates match
                     if (exp.date === productDate) {
                         totalApplicableFixedExpenses += parseFloat(exp.amount);
                     }
                 } else if (exp.isFixed) {
-                    // Fixed Expenses
                     totalApplicableFixedExpenses += parseFloat(exp.amount);
                 }
             }
         });
 
-        // The "Share" of the expense for this BATCH
+        // Unit Proration
         const batchExpenseShare = totalApplicableFixedExpenses * allocationFactor;
-        
-        // The "Unit" proration
         const calcUnitProration = batchExpenseShare / calcQty;
         const finalProration = Math.round(calcUnitProration * 100) / 100;
         setProratedCost(finalProration);
 
-        // 7. Calculate Taxes & Price
+        // 7. Calculate Taxes & Final Cost
+        // User Logic: Final Cost = Initial + Proration + Tax. 
+        // Then Price = Final Cost / (1 - Margin).
+        
         let totalTaxPercent = 0;
         if (expenses.taxes && expenses.taxes.taxList) {
              expenses.taxes.taxList.forEach((t: any) => {
                  totalTaxPercent += (parseFloat(t.percent) || 0);
              });
         } else {
-            // Fallback for legacy data
             if (expenses.taxes?.salesTax) totalTaxPercent += parseFloat(expenses.taxes.salesTax);
             if (expenses.taxes?.incomeTax) totalTaxPercent += parseFloat(expenses.taxes.incomeTax);
             if (totalTaxPercent === 0) totalTaxPercent = 20; 
         }
 
         const baseCost = purchasePrice + finalProration;
-        // Formula: Price = Cost / (1 - Margin%)
-        const provisionalPrice = baseCost / (1 - (margin / 100));
         
-        // Tax Amount (Cost component derived from Sale Price)
-        const calculatedTax = Math.round((provisionalPrice * (totalTaxPercent / 100)) * 100) / 100;
+        // Calculate Tax Amount based on Base Cost to add it to the Final Cost
+        const calculatedTax = Math.round((baseCost * (totalTaxPercent / 100)) * 100) / 100;
         setTotalTaxAmount(calculatedTax);
 
+        const calculatedFinalCost = baseCost + calculatedTax;
+        setFinalCost(calculatedFinalCost);
+
+        // 8. Calculate Sale Price based on Margin applied to Final Cost
         if (!isManualPrice) {
-            // Final Price = Base + Markup + Tax
-            // But usually Price includes Tax. 
-            // If Price = Cost / (1-M), that's the price BEFORE tax if tax is added later?
-            // Prompt says: "costo final suma... el por ciento aplicado de impuestos".
-            // So Final Displayed Cost = Initial + Proration + Tax.
-            // And Sale Price = Provisional + Tax.
-            setManualSalePrice(Math.round((provisionalPrice + calculatedTax) * 100) / 100);
+            // Price = Cost / (1 - Margin%)
+            // Avoid division by zero
+            const safeMargin = margin >= 100 ? 99 : margin;
+            const calculatedPrice = calculatedFinalCost / (1 - (safeMargin / 100));
+            setManualSalePrice(Math.round(calculatedPrice * 100) / 100);
         }
 
     }, [purchasePrice, quantity, margin, businessName, isManualPrice, availableExpenses, selectedExpenses, editProduct]);
@@ -189,7 +184,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                         price: purchasePrice,
                         transport: proratedCost,
                         sale: manualSalePrice,
-                        stock: quantity, // Update stock directly on edit if requested
+                        stock: quantity,
                         applicableExpenses: selectedExpenses
                     };
                 }
@@ -372,8 +367,8 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                                 <div className="flex items-center gap-3">
                                     <Percent size={18} className="text-blue-500" />
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-white">Impuestos Aplicados</label>
-                                        <p className="text-[10px] text-slate-500">Calculado sobre precio venta</p>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-white">Impuestos (% Costo)</label>
+                                        <p className="text-[10px] text-slate-500">Añadido al costo base</p>
                                     </div>
                                 </div>
                                 <span className="font-bold text-blue-500 text-sm">+${totalTaxAmount.toFixed(2)}</span>
@@ -393,7 +388,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                                 <input 
                                     type="range" 
                                     min="0" 
-                                    max="100" 
+                                    max="99" 
                                     value={margin}
                                     onChange={(e) => { setMargin(parseInt(e.target.value)); setIsManualPrice(false); }}
                                     className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500" 
@@ -406,10 +401,10 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                 {/* Landed Cost Summary */}
                 <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 flex justify-between items-center shadow-sm">
                      <div>
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-tight">Costo Total Final</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-tight">Costo Final Calculado</p>
                         <p className="text-xs text-slate-400"> (Inicial + Prorrateo + Impuestos)</p>
                     </div>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">${(purchasePrice + proratedCost + totalTaxAmount).toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white">${finalCost.toFixed(2)}</p>
                 </div>
 
                 {/* Result Card */}
@@ -428,7 +423,7 @@ export const AddProductView: React.FC<AddProductViewProps> = ({ onBack, onImport
                                 className="bg-transparent border-none text-white w-full outline-none p-0 ml-1 font-bold"
                             />
                         </div>
-                        <p className="text-[10px] mt-1 opacity-70">Puedes editar este precio final manualmente.</p>
+                        <p className="text-[10px] mt-1 opacity-70">Calculado: Costo Final / (1 - Margen)</p>
                     </div>
                 </div>
 

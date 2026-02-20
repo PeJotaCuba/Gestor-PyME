@@ -139,10 +139,7 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
         const movements: StockMovement[] = JSON.parse(localStorage.getItem(storageKeyMov) || '[]');
         
         // 1. Calculate Total Inventory Value
-        // Note: For existing products, we must use their STOCK to get the weighted value properly.
         let totalInventoryValue = 0;
-        
-        // Map to store current stock for each product to avoid re-filtering
         const productStocks = new Map<number, number>();
 
         products.forEach(p => {
@@ -150,7 +147,7 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
              const outQty = movements.filter(m => m.productId === p.id && m.type === 'OUT').reduce((sum, m) => sum + m.quantity, 0);
              const stock = inQty - outQty;
              
-             productStocks.set(p.id, stock > 0 ? stock : 1); // Use 1 if stock 0 to allow calculation potential
+             productStocks.set(p.id, stock > 0 ? stock : 1); 
              
              if (stock > 0) {
                  totalInventoryValue += (stock * p.price);
@@ -197,35 +194,34 @@ export const AddExpenseView: React.FC<AddExpenseViewProps> = ({ onBack, business
                 }
             });
 
-            // Calculate Weighted Factor
-            // Weight = (Price * Stock) / TotalInventoryValue
+            // Calculate Weighted Factor & Proration
             const productTotalValue = product.price * stock;
             const allocationFactor = productTotalValue / totalInventoryValue;
-            
-            // Calculate Unit Proration
-            // Total Share = TotalExpenses * Factor
-            // Unit Share = Total Share / Stock
             const batchShare = totalApplicableFixedExpenses * allocationFactor;
             const newProratedCost = Math.round((batchShare / stock) * 100) / 100;
             
             // Recalculate Prices
-            const oldBaseCost = product.price + (product.transport || 0);
+            const baseCost = product.price + newProratedCost;
             
+            // Tax calculated on Base Cost
+            const taxAmount = Math.round((baseCost * (totalTaxPercent / 100)) * 100) / 100;
+            const finalCost = baseCost + taxAmount;
+
             // Try to maintain margin if possible, else default to 30%
+            // Reverse margin from old sale price: Margin = 1 - (OldFinalCost / OldSale)
+            // But we don't store old final cost explicitly. 
+            // Approximation: 
             let margin = 0.30; 
-            if (product.sale > 0 && oldBaseCost > 0) {
-                 const oldTaxRate = totalTaxPercent / 100;
-                 const priceBeforeTax = product.sale / (1 + oldTaxRate);
-                 margin = 1 - (oldBaseCost / priceBeforeTax);
+            if (product.sale > 0 && finalCost > 0) {
+                 // Prevent margin calculation if sale < cost (negative margin)
+                 if (product.sale > finalCost) {
+                     margin = 1 - (finalCost / product.sale);
+                 }
             }
             if (margin < 0) margin = 0.3;
+            if (margin >= 1) margin = 0.99; // Cap margin
 
-            const newBaseCost = product.price + newProratedCost;
-            const newProvisionalPrice = newBaseCost / (1 - margin);
-            const newTax = Math.round((newProvisionalPrice * (totalTaxPercent / 100)) * 100) / 100;
-            
-            // Final Sale Price (Includes tax)
-            const newSalePrice = Math.round((newProvisionalPrice + newTax) * 100) / 100;
+            const newSalePrice = Math.round((finalCost / (1 - margin)) * 100) / 100;
 
             return {
                 ...product,

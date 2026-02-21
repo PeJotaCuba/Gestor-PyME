@@ -180,6 +180,8 @@ const App = () => {
             } catch (e) {
                 console.warn("Error loading exchange rate");
             }
+        } else {
+            setCurrentExchangeRate('');
         }
         setCurrentView(role === UserRole.ASSISTANT ? ViewState.SALES : ViewState.DASHBOARD);
     } else {

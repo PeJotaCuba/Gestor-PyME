@@ -221,10 +221,12 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
     localStorage.setItem(configKey, JSON.stringify(configData));
 
     // 2. Guardar Tasa de Cambio si aplica
+    const rateKey = `Gestor_${name.trim().replace(/\s+/g, '_')}_exchangeRate`;
     if (linkExchangeRate) {
-        const rateKey = `Gestor_${name.trim().replace(/\s+/g, '_')}_exchangeRate`;
         const rateData = { rate: exchangeRate, isManual };
         localStorage.setItem(rateKey, JSON.stringify(rateData));
+    } else {
+        localStorage.removeItem(rateKey);
     }
 
     // 3. Notificar al padre para recargar

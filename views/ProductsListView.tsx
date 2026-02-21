@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, History, X, TrendingUp, TrendingDown, Edit2, Lock, Unlock } from 'lucide-react';
+import { Package, Plus, History, X, TrendingUp, TrendingDown, Edit2, Lock, Unlock, ArrowRightLeft } from 'lucide-react';
 import { Product, StockMovement } from '../types';
 
 interface ProductsListViewProps {
@@ -229,10 +229,10 @@ export const ProductsListView: React.FC<ProductsListViewProps> = ({ businessName
                       <div className="grid grid-cols-2 gap-3 print:hidden">
                           <button 
                              onClick={() => { setEditingStockId(product.id); setStockInput(''); setMovementType('IN'); }}
-                             className="flex items-center justify-center gap-2 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20 rounded-xl font-bold text-xs hover:bg-emerald-500 hover:text-white transition-all"
+                             className="flex items-center justify-center gap-2 py-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-500 border border-blue-200 dark:border-blue-500/20 rounded-xl font-bold text-xs hover:bg-blue-500 hover:text-white transition-all"
                           >
-                              <Plus size={16} />
-                              Entrada
+                              <ArrowRightLeft size={16} />
+                              Ajuste
                           </button>
                           <button 
                              onClick={() => setViewingHistoryId(product.id)}

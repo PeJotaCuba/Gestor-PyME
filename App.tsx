@@ -281,7 +281,7 @@ const App = () => {
         userRole={userRole || UserRole.LEADER}
         onLogout={handleLogout}
         currentExchangeRate={currentExchangeRate}
-        onOpenExchange={() => { /* Lógica de tasa */ }}
+        onOpenExchange={() => navigateTo(ViewState.SETUP)}
     >
       {renderView()}
     </Layout>

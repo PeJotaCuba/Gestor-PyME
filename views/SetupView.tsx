@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Store, Package, Layers, ArrowRight, DollarSign, X, RefreshCw, Globe, CheckCircle, Database, Upload, Download } from 'lucide-react';
+import { Store, Package, Layers, ArrowRight, DollarSign, X, RefreshCw, Globe, CheckCircle, Database, Upload, Download, Edit2 } from 'lucide-react';
 
 interface SetupViewProps {
   onComplete: (name: string, linkExchangeRate: boolean, initialRate?: string, isManual?: boolean) => void;
@@ -295,11 +295,17 @@ export const SetupView: React.FC<SetupViewProps> = ({ onComplete }) => {
         
         {/* Helper text */}
         {linkExchangeRate && exchangeRate && !showRateModal && (
-            <div className="px-4 py-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-                 <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                 <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                     Tasa: <strong>${exchangeRate}</strong> {isManual ? '(Manual)' : '(Auto)'}
-                 </p>
+            <div 
+                onClick={() => setShowRateModal(true)}
+                className="px-4 py-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 flex items-center justify-between gap-2 animate-in fade-in slide-in-from-top-2 cursor-pointer hover:bg-emerald-500/20 transition-colors"
+            >
+                 <div className="flex items-center gap-2">
+                     <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                     <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                         Tasa: <strong>${exchangeRate}</strong> {isManual ? '(Manual)' : '(Auto)'}
+                     </p>
+                 </div>
+                 <Edit2 size={14} className="text-emerald-600 dark:text-emerald-400" />
             </div>
         )}
 
